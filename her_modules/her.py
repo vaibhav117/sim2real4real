@@ -25,7 +25,9 @@ class her_sampler:
         future_t = (t_samples + 1 + future_offset)[her_indexes]
         # replace go with achieved goal
         future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
+        future_img_obs = episode_batch['obs_img'][episode_idxs[her_indexes], future_t]
         transitions['g'][her_indexes] = future_ag
+        transitions['g_o'][her_indexes] = future_img_obs
         # to get the params to re-compute reward
         transitions['r'] = np.expand_dims(self.reward_func(transitions['ag_next'], transitions['g'], None), 1)
         transitions = {k: transitions[k].reshape(batch_size, *transitions[k].shape[1:]) for k in transitions.keys()}

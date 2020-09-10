@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from featurizers.factory import get_encoder
 """
 the input x in both networks should be [o, g], where o is the observation and g is the goal.
 
@@ -42,3 +42,19 @@ class critic(nn.Module):
         q_value = self.q_out(x)
 
         return q_value
+
+class img_actor(nn.Module):
+    def __init__(self):
+        super(img_actor, self).__init__()
+        self.encoder = get_encoder('resnet18')
+        self.compress = nn.Conv2d(in_channels=512, out_channels=32, kernel_size=3)
+        self.compress2 = nn.Conv2d(in_channels=32, out_channels=10, kernel_size=3)
+        self.fc1 = nn.Linear(90, 10)
+
+    def forward(self, x):
+        bt_sz = x.size(0)
+        x = self.encoder(x)[-1]
+        x = F.relu(self.compress(x))
+        x = F.relu(self.compress2(x))
+        x = self.fc1(x.view(bt_sz,-1))
+        return x
