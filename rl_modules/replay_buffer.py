@@ -16,11 +16,11 @@ class replay_buffer:
         self.sample_func = sample_func
         # create the buffer to store info
         self.buffers = {'obs': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_img': np.empty([self.size, self.T + 1, 200, 200, 3]),
+                        'obs_img': np.empty([self.size, self.T + 1, 100, 100, 3]),
                         'ag': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'g': np.empty([self.size, self.T, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),
-                        'g_o': np.empty([self.size, self.T + 1, 200, 200, 3]),
+                        'g_o': np.empty([self.size, self.T + 1, 100, 100, 3]),
                         }
         # thread lock
         self.lock = threading.Lock()

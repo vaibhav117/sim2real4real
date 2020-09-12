@@ -47,9 +47,9 @@ class img_actor(nn.Module):
     def __init__(self):
         super(img_actor, self).__init__()
         self.encoder = get_encoder('resnet18')
-        self.compress = nn.Conv2d(in_channels=512, out_channels=32, kernel_size=3)
-        self.compress2 = nn.Conv2d(in_channels=32, out_channels=10, kernel_size=3)
-        self.fc1 = nn.Linear(90, 10)
+        self.compress = nn.Conv2d(in_channels=512, out_channels=32, kernel_size=2)
+        self.compress2 = nn.Conv2d(in_channels=32, out_channels=10, kernel_size=2)
+        self.fc1 = nn.Linear(40, 10)
 
     def forward(self, x):
         bt_sz = x.size(0)

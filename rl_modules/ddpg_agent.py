@@ -82,7 +82,7 @@ class ddpg_agent:
                     obs = observation['observation']
 
                     if self.image_based:
-                        obs_img = self.env.render(mode="rgb_array", height=200, width=200)
+                        obs_img = self.env.render(mode="rgb_array", height=100, width=100)
 
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
@@ -100,7 +100,7 @@ class ddpg_agent:
                         obs_new = observation_new['observation']
 
                         if self.image_based:
-                            obs_image_new = self.env.render(mode="rgb_array", height=200, width=200)
+                            obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
                             ep_img_obs.append(obs_img.copy())
 
                         ag_new = observation_new['achieved_goal']
@@ -122,7 +122,6 @@ class ddpg_agent:
                     mb_g.append(ep_g)
                     mb_actions.append(ep_actions)
                     mb_img_obs.append(ep_img_obs)
-                print("Im here")
                 # convert them into arrays
                 mb_obs = np.array(mb_obs)
                 mb_ag = np.array(mb_ag)
@@ -134,10 +133,8 @@ class ddpg_agent:
                 self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs])
                 for _ in range(self.args.n_batches):
                     # train the network
-                    print("I'm updating here")
                     self._update_network()
                 # soft update
-                print("Im soft updating here")
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
             # start to do the evaluation
@@ -236,7 +233,6 @@ class ddpg_agent:
         obs_next_norm = self.o_norm.normalize(transitions['obs_next'])
         g_next_norm = self.g_norm.normalize(transitions['g_next'])
         inputs_next_norm = np.concatenate([obs_next_norm, g_next_norm], axis=1)
-        
         image_input_goal_tensor = self.get_image_obs_input(transitions['obs_img'], transitions['g'])
         image_next_input_goal_tensor = self.get_image_obs_input(transitions['obs_img_next'], transitions['g_next'])
 
@@ -278,13 +274,13 @@ class ddpg_agent:
         else:
             actions_real = self.actor_network(image_input_goal_tensor)
 
-
         actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
         actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
         # start to update the network
         self.actor_optim.zero_grad()
+        if self.image_based:
+            self.image_feature_optim.zero_grad()
         actor_loss.backward()
-        print("yo doing shit")
         sync_grads(self.actor_network)
         if self.image_based:
             sync_grads(self.actor_img_featurizer)
@@ -295,7 +291,7 @@ class ddpg_agent:
         critic_loss.backward()
         sync_grads(self.critic_network)
         self.critic_optim.step()
-        print("yo fuck yeah shit")
+        print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
 
     # do the evaluation
     def _eval_agent(self):
@@ -305,7 +301,7 @@ class ddpg_agent:
             observation = self.env.reset()
             obs = observation['observation']
             g = observation['desired_goal']
-            obs_img = self.env.render(mode="rgb_array")
+            obs_img = self.env.render(mode="rgb_array", height=100, width=100)
             for _ in range(self.env_params['max_timesteps']):
                 with torch.no_grad():
                     if self.image_based:
@@ -317,7 +313,7 @@ class ddpg_agent:
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)
                 obs = observation_new['observation']
-                obs_img = self.env.render(mode="rgb_array")
+                obs_img = self.env.render(mode="rgb_array", height=100, width=100)
                 g = observation_new['desired_goal']
                 per_success_rate.append(info['is_success'])
             total_success_rate.append(per_success_rate)
