@@ -116,3 +116,5 @@ venv.bak/
 .vscode/
 
 slurm*
+
+loss_plot.png

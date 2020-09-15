@@ -25,6 +25,8 @@ class ddpg_agent:
         self.viewer = MjRenderContextOffscreen(sim)
         self.viewer.cam.fixedcamid = 3
         self.viewer.cam.type = const.CAMERA_FIXED
+        self.critic_loss = []
+        self.actor_loss = []
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
@@ -345,7 +347,9 @@ class ddpg_agent:
         sync_grads(self.critic_network)
         self.critic_optim.step()
         if MPI.COMM_WORLD.Get_rank() == 0:
-            print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
+            self.critic_loss.append(critic_loss.item())
+            self.actor_loss.append(actor_loss.item())
+            # print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
 
     # do the evaluation
     def _eval_agent(self):
@@ -375,4 +379,11 @@ class ddpg_agent:
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
+        plt.plot(self.actor_loss, color="red", label="Actor Loss")
+        plt.plot(self.critic_loss, color="blue", label="Critic Loss")
+        plt.xlabel('num steps')
+        plt.ylabel('loss value')
+        plt.legend()
+        plt.savefig('loss_plot.png')
+        plt.clf()
         return global_success_rate / MPI.COMM_WORLD.Get_size()
