@@ -12,7 +12,7 @@ import cv2
 import itertools
 import matplotlib.pyplot as plt
 from rl_modules.cheap_model import cheap_cnn
-from mujoco_py import load_model_from_path, MjSim, MjViewer
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 from mujoco_py.generated import const
 
 def render(env, viewer, mode='human', width=500, height=500):
@@ -45,9 +45,10 @@ class ddpg_agent:
         self.args = args
         self.env = env
         sim = self.env.sim
-        self.viewer = MjViewer(sim)
+        self.viewer = MjRenderContextOffscreen(sim)
         self.viewer.cam.fixedcamid = 3
         self.viewer.cam.type = const.CAMERA_FIXED
+        env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
         self.image_based = True
@@ -127,11 +128,11 @@ class ddpg_agent:
 
                     if self.image_based:
                         # self.viewer.render()
-                        obs_img = self.viewer._read_pixels_as_in_window((100,100))
-                        obs_img = cv2.resize(obs_img,(100,100))
+                        #obs_img = self.viewer._read_pixels_as_in_window((100,100))
+                        #obs_img = cv2.resize(obs_img,(100,100))
                         # print(obs_img.shape)
                         # obs_img = render(self.env, self.viewer, mode="rgb_array", height=100, width=100)
-                        # obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+                        obs_img = self.env.render(mode="rgb_array", height=100, width=100)
                         # plt.imshow(obs_img)
                         # plt.show()
 
@@ -152,11 +153,11 @@ class ddpg_agent:
 
                         if self.image_based:
                             # self.viewer.render()
-                            obs_image_new = self.viewer._read_pixels_as_in_window((100,100))
-                            obs_image_new = cv2.resize(obs_image_new,(100,100))
+                            #obs_image_new = self.viewer._read_pixels_as_in_window((100,100))
+                            #obs_image_new = cv2.resize(obs_image_new,(100,100))
                             # plt.imshow(obs_image_new)
                             # plt.show()
-                            # obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
+                            obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
                             ep_img_obs.append(obs_img.copy())
 
                         ag_new = observation_new['achieved_goal']
