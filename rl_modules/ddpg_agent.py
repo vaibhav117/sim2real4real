@@ -5,7 +5,7 @@ import numpy as np
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.replay_buffer import replay_buffer
-from rl_modules.models import actor, critic, img_actor
+from rl_modules.models import actor, critic, img_actor, new_actor
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler
 import cv2
@@ -14,29 +14,6 @@ import matplotlib.pyplot as plt
 from rl_modules.cheap_model import cheap_cnn
 from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 from mujoco_py.generated import const
-
-def render(env, viewer, mode='human', width=500, height=500):
-    # env._render_callback()
-    if mode == 'rgb_array':
-        viewer.render(width, height)
-        # window size used for old mujoco-py:
-        data = viewer.read_pixels(width, height, depth=False)
-        # original image is upside-down, so flip it
-        return data[::-1, :, :]
-    elif mode == 'human':
-        viewer.render()
-
-# def _get_viewer(env, mode):
-#     self.viewer = self._viewers.get(mode)
-#     if self.viewer is None:
-#         if mode == 'human':
-#             self.viewer = mujoco_py.MjViewer(self.sim)
-#         elif mode == 'rgb_array':
-#             self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
-#         self._viewer_setup()
-#         self._viewers[mode] = self.viewer
-#     return self.viewer
-
 """
 ddpg with HER (MPI-version)
 """
@@ -53,25 +30,25 @@ class ddpg_agent:
         self.env_params = env_params
         self.image_based = True
         # create the network
-        self.actor_network = actor(env_params)
+        if not self.image_based:
+            self.actor_network = actor(env_params)
+        else:
+            self.actor_network = new_actor(env_params)
         self.critic_network = critic(env_params)
-
-        # Image based Network 
-        # self.actor_img_featurizer = img_actor()
-        self.actor_img_featurizer = cheap_cnn()
-        self.actor_img_featurizer_target = cheap_cnn()
 
         # sync the networks across the cpus
         sync_networks(self.actor_network)
         sync_networks(self.critic_network)
-        sync_networks(self.actor_img_featurizer)
         # build up the target network
-        self.actor_target_network = actor(env_params)
+        if not self.image_based:
+            self.actor_target_network = actor(env_params)
+        else:
+            self.actor_target_network = new_actor(env_params)
+
         self.critic_target_network = critic(env_params)
         # load the weights into the target networks
         self.actor_target_network.load_state_dict(self.actor_network.state_dict())
         self.critic_target_network.load_state_dict(self.critic_network.state_dict())
-        self.actor_img_featurizer_target.load_state_dict(self.actor_img_featurizer.state_dict())
         # if use gpu
         if self.args.cuda:
             print("use the GPU")
@@ -79,13 +56,8 @@ class ddpg_agent:
             self.critic_network.cuda()
             self.actor_target_network.cuda()
             self.critic_target_network.cuda()
-            self.actor_img_featurizer.cuda()
-            self.actor_img_featurizer_target.cuda()
+
         # create the optimizer
-
-        if self.image_based:
-            self.image_feature_optim = torch.optim.Adam(self.actor_img_featurizer.parameters(), lr=self.args.lr_actor)
-
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
         self.critic_optim = torch.optim.Adam(self.critic_network.parameters(), lr=self.args.lr_critic)
         # her sampler
@@ -127,14 +99,7 @@ class ddpg_agent:
                     obs = observation['observation']
 
                     if self.image_based:
-                        # self.viewer.render()
-                        #obs_img = self.viewer._read_pixels_as_in_window((100,100))
-                        #obs_img = cv2.resize(obs_img,(100,100))
-                        # print(obs_img.shape)
-                        # obs_img = render(self.env, self.viewer, mode="rgb_array", height=100, width=100)
                         obs_img = self.env.render(mode="rgb_array", height=100, width=100)
-                        # plt.imshow(obs_img)
-                        # plt.show()
 
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
@@ -143,20 +108,16 @@ class ddpg_agent:
                         with torch.no_grad():
                             if not self.image_based:
                                 input_tensor = self._preproc_inputs(obs, g)
+                                pi = self.actor_network(input_tensor)
                             else:
-                                input_tensor = self.get_image_obs_input(obs_img[np.newaxis, :].copy(), g[np.newaxis, :].copy())
-                            pi = self.actor_network(input_tensor)
+                                o_tensor, g_tensor = self._preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                                pi = self.actor_network(o_tensor, g_tensor)
                             action = self._select_actions(pi)
                         # feed the actions into the environment
                         observation_new, _, _, info = self.env.step(action)
                         obs_new = observation_new['observation']
 
                         if self.image_based:
-                            # self.viewer.render()
-                            #obs_image_new = self.viewer._read_pixels_as_in_window((100,100))
-                            #obs_image_new = cv2.resize(obs_image_new,(100,100))
-                            # plt.imshow(obs_image_new)
-                            # plt.show()
                             obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
                             ep_img_obs.append(obs_img.copy())
 
@@ -169,6 +130,7 @@ class ddpg_agent:
                         # re-assign the observation
                         obs = obs_new
                         ag = ag_new
+
                         if self.image_based:
                             obs_img = obs_image_new
 
@@ -203,7 +165,6 @@ class ddpg_agent:
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
-                self._soft_update_target_network(self.actor_img_featurizer_target, self.actor_img_featurizer)
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
@@ -221,6 +182,16 @@ class ddpg_agent:
         if self.args.cuda:
             inputs = inputs.cuda()
         return inputs
+    
+    # pre_process the inputs
+    def _preproc_inputs_image(self, obs_img, g):
+        obs_img = torch.tensor(obs_img).to(torch.float32)
+        obs_img = obs_img.permute(0, 3, 1, 2)
+        g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
+        if self.args.cuda:
+            obs_img = obs_img.cuda()
+            g_norm = g_norm.cuda()
+        return obs_img, g_norm
     
     # this function will choose action for the agent and do the exploration
     def _select_actions(self, pi):
@@ -310,8 +281,6 @@ class ddpg_agent:
         transitions = self.buffer.sample(self.args.batch_size)
         # pre-process the observation and goal
         o, o_next, g = transitions['obs'], transitions['obs_next'], transitions['g']
-        image_g = g.copy()
-        image_g_next = g.copy()
         transitions['obs'], transitions['g'] = self._preproc_og(o, g)
         transitions['obs_next'], transitions['g_next'] = self._preproc_og(o_next, g)
         # start to do the update
@@ -341,8 +310,8 @@ class ddpg_agent:
             if not self.image_based:
                 actions_next = self.actor_target_network(inputs_next_norm_tensor)
             else:
-                image_next_input_goal_tensor = self.get_image_obs_input(transitions['obs_img_next'], image_g_next, target=True)
-                actions_next = self.actor_target_network(image_next_input_goal_tensor)
+                tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_img_next'], transitions['g_next'])
+                actions_next = self.actor_target_network(tensor_img, tensor_g)
 
             q_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
             q_next_value = q_next_value.detach()
@@ -359,23 +328,16 @@ class ddpg_agent:
         if not self.image_based:
             actions_real = self.actor_network(inputs_norm_tensor)
         else:
-            image_input_goal_tensor = self.get_image_obs_input(transitions['obs_img'], image_g)
-            actions_real = self.actor_network(image_input_goal_tensor)
+            tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_img'], transitions['g'])
+            actions_real = self.actor_network(tensor_img, tensor_g)
 
         actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
         actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
         # start to update the network
         self.actor_optim.zero_grad()
-
-        if self.image_based:
-            self.image_feature_optim.zero_grad()
-
         actor_loss.backward()
         sync_grads(self.actor_network)
 
-        if self.image_based:
-            sync_grads(self.actor_img_featurizer)
-            self.image_feature_optim.step()
         self.actor_optim.step()
         # update the critic_network
         self.critic_optim.zero_grad()
@@ -397,10 +359,11 @@ class ddpg_agent:
             for _ in range(self.env_params['max_timesteps']):
                 with torch.no_grad():
                     if self.image_based:
-                        input_tensor = self.get_image_obs_input(obs_img[np.newaxis, :], g[np.newaxis, :])
+                        o_tensor, g_tensor = self._preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                        pi = self.actor_network(o_tensor, g_tensor)
                     else:
                         input_tensor = self._preproc_inputs(obs, g)
-                    pi = self.actor_network(input_tensor)
+                        pi = self.actor_network(input_tensor)
                     # convert the actions
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)

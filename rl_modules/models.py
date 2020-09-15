@@ -26,6 +26,35 @@ class actor(nn.Module):
 
         return actions
 
+class new_actor(nn.Module):
+    def __init__(self, env_params):
+        super(new_actor, self).__init__()
+        self.max_action = env_params['action_max']
+        self.cnn1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3)
+        self.cnn2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3)
+        self.cnn3 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3)
+        self.cnn4 = nn.Conv2d(in_channels=32, out_channels=2, kernel_size=3)
+        self.flatten = nn.Flatten()
+        # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
+        self.fc1 = nn.Linear(16931, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 512)
+        self.action_out = nn.Linear(512, env_params['action'])
+
+    def forward(self, x, g):
+        x = F.relu(self.cnn1(x))
+        x = F.relu(self.cnn2(x))
+        x = F.relu(self.cnn3(x))
+        x = F.relu(self.cnn4(x))
+        x = self.flatten(x)
+        x = torch.cat([x, g], dim=1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        actions = self.max_action * torch.tanh(self.action_out(x))
+
+        return actions
+
 class critic(nn.Module):
     def __init__(self, env_params):
         super(critic, self).__init__()
