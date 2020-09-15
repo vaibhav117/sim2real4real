@@ -10,15 +10,45 @@ from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler
 import cv2
 import itertools
+import matplotlib.pyplot as plt
 from rl_modules.cheap_model import cheap_cnn
+from mujoco_py import load_model_from_path, MjSim, MjViewer
+from mujoco_py.generated import const
+
+def render(env, viewer, mode='human', width=500, height=500):
+    # env._render_callback()
+    if mode == 'rgb_array':
+        viewer.render(width, height)
+        # window size used for old mujoco-py:
+        data = viewer.read_pixels(width, height, depth=False)
+        # original image is upside-down, so flip it
+        return data[::-1, :, :]
+    elif mode == 'human':
+        viewer.render()
+
+# def _get_viewer(env, mode):
+#     self.viewer = self._viewers.get(mode)
+#     if self.viewer is None:
+#         if mode == 'human':
+#             self.viewer = mujoco_py.MjViewer(self.sim)
+#         elif mode == 'rgb_array':
+#             self.viewer = mujoco_py.MjRenderContextOffscreen(self.sim, device_id=-1)
+#         self._viewer_setup()
+#         self._viewers[mode] = self.viewer
+#     return self.viewer
+
 """
 ddpg with HER (MPI-version)
-
 """
 class ddpg_agent:
     def __init__(self, args, env, env_params):
         self.args = args
         self.env = env
+        sim = self.env.sim
+        self.viewer = MjViewer(sim)
+        self.viewer.cam.fixedcamid = 3
+        self.viewer.cam.type = const.CAMERA_FIXED
+
         self.env_params = env_params
         self.image_based = True
         # create the network
@@ -96,7 +126,14 @@ class ddpg_agent:
                     obs = observation['observation']
 
                     if self.image_based:
-                        obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+                        # self.viewer.render()
+                        obs_img = self.viewer._read_pixels_as_in_window((100,100))
+                        obs_img = cv2.resize(obs_img,(100,100))
+                        # print(obs_img.shape)
+                        # obs_img = render(self.env, self.viewer, mode="rgb_array", height=100, width=100)
+                        # obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+                        # plt.imshow(obs_img)
+                        # plt.show()
 
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
@@ -114,7 +151,12 @@ class ddpg_agent:
                         obs_new = observation_new['observation']
 
                         if self.image_based:
-                            obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
+                            # self.viewer.render()
+                            obs_image_new = self.viewer._read_pixels_as_in_window((100,100))
+                            obs_image_new = cv2.resize(obs_image_new,(100,100))
+                            # plt.imshow(obs_image_new)
+                            # plt.show()
+                            # obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
                             ep_img_obs.append(obs_img.copy())
 
                         ag_new = observation_new['achieved_goal']
