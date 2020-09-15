@@ -2,14 +2,14 @@
 """
 Displays robot fetch at a disco party.
 """
-from mujoco_py import load_model_from_path, MjSim, MjViewer
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
 import os
 import gym
 import random
 import torch
 from mujoco_py.generated import const
-
+import matplotlib.pyplot as plt
 
 def randomize_camera(viewer):
     viewer.cam.distance = random.randrange(1,2)
@@ -38,7 +38,14 @@ env = gym.make('FetchPickAndPlace-v1')
 # env.sim = sim
 
 sim = env.sim
-viewer = MjViewer(sim)
+viewer = MjRenderContextOffscreen(sim)
+viewer.cam.fixedcamid = 3
+viewer.cam.type = const.CAMERA_FIXED
+env.env._viewers['rgb_array'] = viewer
+im = env.render(mode="rgb_array")
+plt.imshow(im)
+plt.show()
+
 modder = TextureModder(sim)
 # modder = CameraModder(sim)
 modder.whiten_materials()
