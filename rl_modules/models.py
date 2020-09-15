@@ -13,7 +13,7 @@ class actor(nn.Module):
         super(actor, self).__init__()
         self.max_action = env_params['action_max']
         # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
-        self.fc1 = nn.Linear(35, 256)
+        self.fc1 = nn.Linear(16931, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.action_out = nn.Linear(256, env_params['action'])

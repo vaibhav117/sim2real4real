@@ -12,14 +12,15 @@ class cheap_cnn(nn.Module):
         self.cnn2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3)
         self.cnn3 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3)
         self.cnn4 = nn.Conv2d(in_channels=32, out_channels=2, kernel_size=3)
+        self.flatten = nn.Flatten()
 
     def forward(self, x):
         bt_sz = x.size(0)
-        x = F.max_pool2d(F.relu(self.cnn1(x)), kernel_size=2)
-        x = F.max_pool2d(F.relu(self.cnn2(x)), kernel_size=2)
-        x = F.max_pool2d(F.relu(self.cnn3(x)), kernel_size=2)
-        x = F.max_pool2d(F.relu(self.cnn4(x)), kernel_size=2)
-        return x.view(bt_sz, -1)
+        x = F.relu(self.cnn1(x))
+        x = F.relu(self.cnn2(x))
+        x = F.relu(self.cnn3(x))
+        x = F.relu(self.cnn4(x))
+        return self.flatten(x)
 
 # define the actor network
 class actor2(nn.Module):

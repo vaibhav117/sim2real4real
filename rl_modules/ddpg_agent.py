@@ -28,21 +28,28 @@ class ddpg_agent:
         # Image based Network 
         # self.actor_img_featurizer = img_actor()
         self.actor_img_featurizer = cheap_cnn()
+        self.actor_img_featurizer_target = cheap_cnn()
+
         # sync the networks across the cpus
         sync_networks(self.actor_network)
         sync_networks(self.critic_network)
+        sync_networks(self.actor_img_featurizer)
         # build up the target network
         self.actor_target_network = actor(env_params)
         self.critic_target_network = critic(env_params)
         # load the weights into the target networks
         self.actor_target_network.load_state_dict(self.actor_network.state_dict())
         self.critic_target_network.load_state_dict(self.critic_network.state_dict())
+        self.actor_img_featurizer_target.load_state_dict(self.actor_img_featurizer.state_dict())
         # if use gpu
         if self.args.cuda:
+            print("use the GPU")
             self.actor_network.cuda()
             self.critic_network.cuda()
             self.actor_target_network.cuda()
             self.critic_target_network.cuda()
+            self.actor_img_featurizer.cuda()
+            self.actor_img_featurizer_target.cuda()
         # create the optimizer
 
         if self.image_based:
@@ -153,6 +160,7 @@ class ddpg_agent:
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
+                self._soft_update_target_network(self.actor_img_featurizer_target, self.actor_img_featurizer)
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
@@ -237,14 +245,20 @@ class ddpg_agent:
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - self.args.polyak) * param.data + self.args.polyak * target_param.data)
 
-    def get_image_obs_input(self, obs_img, g):
+    def get_image_obs_input(self, obs_img, g, target=False):
         obs_img = torch.tensor(obs_img.copy()).to(torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
-        feature_obs_img = self.actor_img_featurizer(obs_img)
-        g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
-        inputs = torch.cat([feature_obs_img, g_norm], dim=1)
         if self.args.cuda:
-            inputs = inputs.cuda()
+            g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32).cuda()
+            obs_img = obs_img.cuda()
+        else:
+            g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
+        if target == False:
+            feature_obs_img = self.actor_img_featurizer(obs_img)
+        else:
+            feature_obs_img = self.actor_img_featurizer_target(obs_img)
+
+        inputs = torch.cat([feature_obs_img, g_norm], dim=1)
         return inputs
 
     # update the network
@@ -253,6 +267,8 @@ class ddpg_agent:
         transitions = self.buffer.sample(self.args.batch_size)
         # pre-process the observation and goal
         o, o_next, g = transitions['obs'], transitions['obs_next'], transitions['g']
+        image_g = g.copy()
+        image_g_next = g.copy()
         transitions['obs'], transitions['g'] = self._preproc_og(o, g)
         transitions['obs_next'], transitions['g_next'] = self._preproc_og(o_next, g)
         # start to do the update
@@ -262,10 +278,6 @@ class ddpg_agent:
         obs_next_norm = self.o_norm.normalize(transitions['obs_next'])
         g_next_norm = self.g_norm.normalize(transitions['g_next'])
         inputs_next_norm = np.concatenate([obs_next_norm, g_next_norm], axis=1)
-
-        if self.image_based:
-            image_input_goal_tensor = self.get_image_obs_input(transitions['obs_img'], transitions['g'])
-            image_next_input_goal_tensor = self.get_image_obs_input(transitions['obs_img_next'], transitions['g_next'])
 
         # transfer them into the tensor
         inputs_norm_tensor = torch.tensor(inputs_norm, dtype=torch.float32)
@@ -286,6 +298,7 @@ class ddpg_agent:
             if not self.image_based:
                 actions_next = self.actor_target_network(inputs_next_norm_tensor)
             else:
+                image_next_input_goal_tensor = self.get_image_obs_input(transitions['obs_img_next'], image_g_next, target=True)
                 actions_next = self.actor_target_network(image_next_input_goal_tensor)
 
             q_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
@@ -303,6 +316,7 @@ class ddpg_agent:
         if not self.image_based:
             actions_real = self.actor_network(inputs_norm_tensor)
         else:
+            image_input_goal_tensor = self.get_image_obs_input(transitions['obs_img'], image_g)
             actions_real = self.actor_network(image_input_goal_tensor)
 
         actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
