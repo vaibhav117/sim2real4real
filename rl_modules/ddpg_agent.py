@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 from rl_modules.cheap_model import cheap_cnn
 from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 from mujoco_py.generated import const
+from rl_modules.utils import plot_grad_flow
+from torch import autograd
+
 """
 ddpg with HER (MPI-version)
 """
@@ -330,18 +333,19 @@ class ddpg_agent:
         real_q_value = self.critic_network(inputs_norm_tensor, actions_tensor)
         critic_loss = (target_q_value - real_q_value).pow(2).mean()
         # the actor loss
-
         if not self.image_based:
             actions_real = self.actor_network(inputs_norm_tensor)
         else:
             tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_img'], transitions['g'])
             actions_real = self.actor_network(tensor_img, tensor_g)
+            
 
         actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
         actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
         # start to update the network
         self.actor_optim.zero_grad()
         actor_loss.backward()
+        # plot_grad_flow(self.actor_network.named_parameters())
         sync_grads(self.actor_network)
 
         self.actor_optim.step()
