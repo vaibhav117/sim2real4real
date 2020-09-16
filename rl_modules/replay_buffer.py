@@ -17,11 +17,11 @@ class replay_buffer:
         self.image_based = image_based
         # create the buffer to store info
         self.buffers = {'obs': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_img': np.empty([self.size, self.T + 1, 100, 100, 3]),
+                        'obs_img': None,
                         'ag': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'g': np.empty([self.size, self.T, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),
-                        'g_o': np.empty([self.size, self.T + 1, 100, 100, 3]),
+                        'g_o': None,
                         }
         # thread lock
         self.lock = threading.Lock()
@@ -38,8 +38,12 @@ class replay_buffer:
             idxs = self._get_storage_idx(inc=batch_size)
             # store the informations
             if self.image_based:
-                self.buffers['obs_img'][idxs] = mb_obs_imgs
-                self.buffers['g_o'][idxs] = mb_obs_imgs
+                if self.buffers['obs_img'] is None:
+                    self.buffers['obs_img'] = mb_obs_imgs
+                    self.buffers['g_o'] = mb_obs_imgs.copy()
+                else:
+                    self.buffers['obs_img'] = np.concatenate((self.buffers['obs_img'], mb_obs_imgs), axis=0) 
+                    self.buffers['g_o'] = np.concatenate((self.buffers['g_o'], mb_obs_imgs.copy()), axis=0) 
             
             self.buffers['obs'][idxs] = mb_obs
             self.buffers['ag'][idxs] = mb_ag

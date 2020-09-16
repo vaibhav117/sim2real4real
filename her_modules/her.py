@@ -26,6 +26,7 @@ class her_sampler:
         future_t = (t_samples + 1 + future_offset)[her_indexes]
         # replace go with achieved goal
         future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
+        
         if self.image_based:
             future_img_obs = episode_batch['obs_img'][episode_idxs[her_indexes], future_t]
             transitions['g_o'][her_indexes] = future_img_obs

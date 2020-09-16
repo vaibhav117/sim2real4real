@@ -102,6 +102,10 @@ class ddpg_agent:
 
                     if self.image_based:
                         obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+                        # plt.imshow(obs_img)
+                        # plt.savefig('image_observation.png')
+                        # plt.show()
+                        # exit()
 
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
