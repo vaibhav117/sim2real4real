@@ -191,7 +191,7 @@ class ddpg_agent:
     
     # pre_process the inputs
     def _preproc_inputs_image(self, obs_img, g):
-        obs_img = torch.tensor(obs_img).to(torch.float32)
+        obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
         g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
         if self.args.cuda:
@@ -353,7 +353,7 @@ class ddpg_agent:
         if MPI.COMM_WORLD.Get_rank() == 0:
             self.critic_loss.append(critic_loss.item())
             self.actor_loss.append(actor_loss.item())
-            # print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
+            print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
 
     # do the evaluation
     def _eval_agent(self):
