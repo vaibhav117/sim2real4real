@@ -357,7 +357,7 @@ class ddpg_agent:
         if MPI.COMM_WORLD.Get_rank() == 0:
             self.critic_loss.append(critic_loss.item())
             self.actor_loss.append(actor_loss.item())
-            print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
+            # print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
 
     # do the evaluation
     def _eval_agent(self):
