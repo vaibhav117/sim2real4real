@@ -57,10 +57,10 @@ class ddpg_agent:
         # if use gpu
         if self.args.cuda:
             print("use the GPU")
-            self.actor_network.cuda()
-            self.critic_network.cuda()
-            self.actor_target_network.cuda()
-            self.critic_target_network.cuda()
+            self.actor_network.cuda(MPI.COMM_WORLD.Get_rank())
+            self.critic_network.cuda(MPI.COMM_WORLD.Get_rank())
+            self.actor_target_network.cuda(MPI.COMM_WORLD.Get_rank())
+            self.critic_target_network.cuda(MPI.COMM_WORLD.Get_rank())
 
         # create the optimizer
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
@@ -176,7 +176,7 @@ class ddpg_agent:
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
             # start to do the evaluation
             success_rate = self._eval_agent()
-            if MPI.COMM_WORLD.Get_rank() == 0:
+            if MPI.COMM_WORLD.Get_rank(): == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
                 torch.save([self.o_norm.mean, self.o_norm.std, self.g_norm.mean, self.g_norm.std, self.actor_network.state_dict()], \
                             self.model_path + '/model.pt')
@@ -189,7 +189,7 @@ class ddpg_agent:
         inputs = np.concatenate([obs_norm, g_norm])
         inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0)
         if self.args.cuda:
-            inputs = inputs.cuda()
+            inputs = inputs.cuda(MPI.COMM_WORLD.Get_rank())
         return inputs
     
     # pre_process the inputs
@@ -198,8 +198,8 @@ class ddpg_agent:
         obs_img = obs_img.permute(0, 3, 1, 2)
         g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
         if self.args.cuda:
-            obs_img = obs_img.cuda()
-            g_norm = g_norm.cuda()
+            obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+            g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
         return obs_img, g_norm
     
     # this function will choose action for the agent and do the exploration
@@ -272,8 +272,8 @@ class ddpg_agent:
         obs_img = torch.tensor(obs_img.copy()).to(torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
         if self.args.cuda:
-            g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32).cuda()
-            obs_img = obs_img.cuda()
+            g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32).cuda(MPI.COMM_WORLD.Get_rank())
+            obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
         else:
             g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
         if target == False:
@@ -307,10 +307,10 @@ class ddpg_agent:
         actions_tensor = torch.tensor(transitions['actions'], dtype=torch.float32)
         r_tensor = torch.tensor(transitions['r'], dtype=torch.float32)
         if self.args.cuda:
-            inputs_norm_tensor = inputs_norm_tensor.cuda()
-            inputs_next_norm_tensor = inputs_next_norm_tensor.cuda()
-            actions_tensor = actions_tensor.cuda()
-            r_tensor = r_tensor.cuda()
+            inputs_norm_tensor = inputs_norm_tensor.cuda(MPI.COMM_WORLD.Get_rank())
+            inputs_next_norm_tensor = inputs_next_norm_tensor.cuda(MPI.COMM_WORLD.Get_rank())
+            actions_tensor = actions_tensor.cuda(MPI.COMM_WORLD.Get_rank())
+            r_tensor = r_tensor.cuda(MPI.COMM_WORLD.Get_rank())
         # calculate the target Q value function
         with torch.no_grad():
             # do the normalization

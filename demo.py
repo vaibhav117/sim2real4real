@@ -1,8 +1,10 @@
 import torch
-from rl_modules.models import actor
+from rl_modules.models import actor, new_actor
 from arguments import get_args
 import gym
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 import numpy as np
+from mujoco_py.generated import const
 
 # process the inputs
 def process_inputs(o, g, o_mean, o_std, g_mean, g_std, args):
@@ -14,7 +16,10 @@ def process_inputs(o, g, o_mean, o_std, g_mean, g_std, args):
     inputs = torch.tensor(inputs, dtype=torch.float32)
     return inputs
 
+
+
 if __name__ == '__main__':
+    image_based = True
     args = get_args()
     # load the model param
     model_path = args.save_dir + args.env_name + '/model.pt'
@@ -29,8 +34,16 @@ if __name__ == '__main__':
                   'action': env.action_space.shape[0], 
                   'action_max': env.action_space.high[0],
                   }
+
+    if image_based:
+        sim = env.sim
+        viewer = MjRenderContextOffscreen(sim)
+        viewer.cam.fixedcamid = 3
+        viewer.cam.type = const.CAMERA_FIXED
+        env.env._viewers['rgb_array'] = viewer
+
     # create the actor network
-    actor_network = actor(env_params)
+    actor_network = new_actor(env_params)
     actor_network.load_state_dict(model)
     actor_network.eval()
     for i in range(args.demo_length):
@@ -40,9 +53,22 @@ if __name__ == '__main__':
         g = observation['desired_goal']
         for t in range(env._max_episode_steps):
             env.render()
-            inputs = process_inputs(obs, g, o_mean, o_std, g_mean, g_std, args)
+
+            if image_based:
+                obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
+                print(obs_img.shape)
+                obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
+                obs_img = obs_img.permute(0, 3, 1, 2)
+                g_clip = np.clip(g, -args.clip_obs, args.clip_obs)
+                g_norm = torch.tensor(np.clip((g_clip - g_mean) / (g_std), -args.clip_range, args.clip_range),  dtype=torch.float32).unsqueeze(0)
+            else:
+                inputs = process_inputs(obs, g, o_mean, o_std, g_mean, g_std, args)
+
             with torch.no_grad():
-                pi = actor_network(inputs)
+                if not image_based:
+                    pi = actor_network(inputs)
+                else:
+                    pi = actor_network(obs_img, g_norm)
             action = pi.detach().numpy().squeeze()
             # put actions into the environment
             observation_new, reward, _, info = env.step(action)
