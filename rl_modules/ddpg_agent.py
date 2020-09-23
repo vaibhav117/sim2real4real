@@ -5,7 +5,7 @@ import numpy as np
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.replay_buffer import replay_buffer
-from rl_modules.models import actor, critic, img_actor, new_actor
+from rl_modules.models import actor, critic, img_actor, new_actor, resnet_actor
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler
 import cv2
@@ -26,10 +26,13 @@ class ddpg_agent:
         self.env = env
         sim = self.env.sim
         self.viewer = MjRenderContextOffscreen(sim)
-        self.viewer.cam.fixedcamid = 3
-        self.viewer.cam.type = const.CAMERA_FIXED
+        # self.viewer.cam.fixedcamid = 3
+        # self.viewer.cam.type = const.CAMERA_FIXED
         self.critic_loss = []
         self.actor_loss = []
+        self.viewer.cam.distance = 1.2
+        self.viewer.cam.azimuth = 180
+        self.viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
@@ -38,7 +41,8 @@ class ddpg_agent:
         if not self.image_based:
             self.actor_network = actor(env_params)
         else:
-            self.actor_network = new_actor(env_params)
+            # self.actor_network = new_actor(env_params)
+            self.actor_network = resnet_actor(env_params)
         self.critic_network = critic(env_params)
 
         # sync the networks across the cpus
@@ -48,7 +52,8 @@ class ddpg_agent:
         if not self.image_based:
             self.actor_target_network = actor(env_params)
         else:
-            self.actor_target_network = new_actor(env_params)
+            self.actor_target_network = resnet_actor(env_params)
+            # self.actor_target_network = new_actor(env_params)
 
         self.critic_target_network = critic(env_params)
         # load the weights into the target networks
@@ -105,9 +110,9 @@ class ddpg_agent:
 
                     if self.image_based:
                         obs_img = self.env.render(mode="rgb_array", height=100, width=100)
-                        # plt.imshow(obs_img)
+                        plt.imshow(obs_img)
                         # plt.savefig('image_observation.png')
-                        # plt.show()
+                        plt.show()
                         # exit()
 
                     ag = observation['achieved_goal']

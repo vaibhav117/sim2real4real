@@ -65,6 +65,37 @@ class new_actor(nn.Module):
 
         return actions
 
+
+class resnet_actor(nn.Module):
+    def __init__(self, env_params):
+        super(resnet_actor, self).__init__()
+        self.max_action = env_params['action_max']
+        self.encoder = get_encoder('resnet18')
+        self.conv_compress = nn.Conv2d(in_channels=512, out_channels=16, kernel_size=2)
+        self.bn1 = nn.BatchNorm2d(num_features=16)
+        self.flatten = nn.Flatten()
+        # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
+        self.fc1 = nn.Linear(144+3, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 512)
+        self.action_out = nn.Linear(512, env_params['action'])
+
+    def forward(self, x, g):
+        x = self.encoder(x)[-1]
+        x = F.relu(self.bn1(self.conv_compress(x)))
+        x = self.flatten(x)
+        # g = F.relu(self.g_fc1(g))
+        # g = F.relu(self.g_fc2(g))
+
+        x = torch.cat([x, g], dim=1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        actions = self.max_action * torch.tanh(self.action_out(x))
+
+        return actions
+
+
 class critic(nn.Module):
     def __init__(self, env_params):
         super(critic, self).__init__()
