@@ -36,7 +36,7 @@ class ddpg_agent:
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
-        self.image_based = True
+        self.image_based = False
         # create the network
         if not self.image_based:
             self.actor_network = actor(env_params)
