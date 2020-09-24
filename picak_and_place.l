@@ -1,0 +1,54 @@
+use the GPU
+use the GPU
+use the GPU
+use the GPU
+[2020-09-23 18:17:16.655433] epoch is: 0, eval success rate is: 0.050
+[2020-09-23 18:26:38.967009] epoch is: 1, eval success rate is: 0.075
+[2020-09-23 18:36:02.632725] epoch is: 2, eval success rate is: 0.000
+[2020-09-23 18:45:30.194720] epoch is: 3, eval success rate is: 0.000
+[2020-09-23 18:54:55.347268] epoch is: 4, eval success rate is: 0.050
+[2020-09-23 19:04:20.591309] epoch is: 5, eval success rate is: 0.025
+[2020-09-23 19:13:46.246963] epoch is: 6, eval success rate is: 0.100
+[2020-09-23 19:23:11.934101] epoch is: 7, eval success rate is: 0.075
+[2020-09-23 19:32:36.248145] epoch is: 8, eval success rate is: 0.050
+[2020-09-23 19:42:00.312606] epoch is: 9, eval success rate is: 0.050
+[2020-09-23 19:51:25.156552] epoch is: 10, eval success rate is: 0.100
+[2020-09-23 20:00:49.570513] epoch is: 11, eval success rate is: 0.050
+[2020-09-23 20:10:15.247336] epoch is: 12, eval success rate is: 0.000
+[2020-09-23 20:19:39.958691] epoch is: 13, eval success rate is: 0.100
+[2020-09-23 20:29:04.538219] epoch is: 14, eval success rate is: 0.150
+[2020-09-23 20:38:28.745979] epoch is: 15, eval success rate is: 0.225
+[2020-09-23 20:47:53.087952] epoch is: 16, eval success rate is: 0.225
+[2020-09-23 20:57:16.760500] epoch is: 17, eval success rate is: 0.150
+[2020-09-23 21:06:41.374241] epoch is: 18, eval success rate is: 0.150
+[2020-09-23 21:16:05.653388] epoch is: 19, eval success rate is: 0.225
+[2020-09-23 21:25:29.777713] epoch is: 20, eval success rate is: 0.200
+[2020-09-23 21:34:54.577224] epoch is: 21, eval success rate is: 0.325
+[2020-09-23 21:44:18.262602] epoch is: 22, eval success rate is: 0.300
+[2020-09-23 21:53:41.982946] epoch is: 23, eval success rate is: 0.300
+[2020-09-23 22:03:06.242924] epoch is: 24, eval success rate is: 0.350
+[2020-09-23 22:12:29.963317] epoch is: 25, eval success rate is: 0.350
+[2020-09-23 22:21:53.722491] epoch is: 26, eval success rate is: 0.350
+[2020-09-23 22:31:17.630020] epoch is: 27, eval success rate is: 0.400
+[2020-09-23 22:40:41.483190] epoch is: 28, eval success rate is: 0.500
+[2020-09-23 22:50:04.960805] epoch is: 29, eval success rate is: 0.425
+[2020-09-23 22:59:29.585550] epoch is: 30, eval success rate is: 0.425
+[2020-09-23 23:08:54.332916] epoch is: 31, eval success rate is: 0.500
+[2020-09-23 23:18:19.212549] epoch is: 32, eval success rate is: 0.500
+[2020-09-23 23:27:42.910889] epoch is: 33, eval success rate is: 0.550
+[2020-09-23 23:37:07.385761] epoch is: 34, eval success rate is: 0.700
+[2020-09-23 23:46:31.212124] epoch is: 35, eval success rate is: 0.500
+[2020-09-23 23:55:55.136196] epoch is: 36, eval success rate is: 0.500
+[2020-09-24 00:05:20.014844] epoch is: 37, eval success rate is: 0.425
+[2020-09-24 00:14:44.617116] epoch is: 38, eval success rate is: 0.725
+[2020-09-24 00:24:09.450762] epoch is: 39, eval success rate is: 0.525
+[2020-09-24 00:33:34.537558] epoch is: 40, eval success rate is: 0.600
+[2020-09-24 00:42:59.820824] epoch is: 41, eval success rate is: 0.725
+[2020-09-24 00:52:25.068457] epoch is: 42, eval success rate is: 0.575
+[2020-09-24 01:01:49.643557] epoch is: 43, eval success rate is: 0.800
+[2020-09-24 01:11:14.188905] epoch is: 44, eval success rate is: 0.750
+[2020-09-24 01:20:38.784296] epoch is: 45, eval success rate is: 0.875
+[2020-09-24 01:30:02.946912] epoch is: 46, eval success rate is: 0.775
+[2020-09-24 01:39:27.494009] epoch is: 47, eval success rate is: 0.750
+[2020-09-24 01:48:52.597096] epoch is: 48, eval success rate is: 0.800
+[2020-09-24 01:58:17.517247] epoch is: 49, eval success rate is: 0.875
