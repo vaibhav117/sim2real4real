@@ -36,13 +36,13 @@ class ddpg_agent:
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
-        self.image_based = False
+        self.image_based = True
         # create the network
         if not self.image_based:
             self.actor_network = actor(env_params)
         else:
-            # self.actor_network = new_actor(env_params)
-            self.actor_network = resnet_actor(env_params)
+            self.actor_network = new_actor(env_params)
+            #self.actor_network = resnet_actor(env_params)
         self.critic_network = critic(env_params)
 
         # sync the networks across the cpus
@@ -52,8 +52,8 @@ class ddpg_agent:
         if not self.image_based:
             self.actor_target_network = actor(env_params)
         else:
-            self.actor_target_network = resnet_actor(env_params)
-            # self.actor_target_network = new_actor(env_params)
+            #self.actor_target_network = resnet_actor(env_params)
+            self.actor_target_network = new_actor(env_params)
 
         self.critic_target_network = critic(env_params)
         # load the weights into the target networks
@@ -110,9 +110,9 @@ class ddpg_agent:
 
                     if self.image_based:
                         obs_img = self.env.render(mode="rgb_array", height=100, width=100)
-                        plt.imshow(obs_img)
+                        #plt.imshow(obs_img)
                         # plt.savefig('image_observation.png')
-                        plt.show()
+                        #plt.show()
                         # exit()
 
                     ag = observation['achieved_goal']
