@@ -3,9 +3,9 @@
 #SBATCH --job-name=classification
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=30:00:00
-#SBATCH --gres=gpu:v100:4
-#SBATCH --mem=50GB
+#SBATCH --time=1:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=30GB
 
 . ~/.bashrc
 #cd /scratch/$USER/rl/sim2real4real/

@@ -24,6 +24,7 @@ class ddpg_agent:
     def __init__(self, args, env, env_params):
         self.args = args
         self.env = env
+        self.env_params = env_params
         sim = self.env.sim
         self.viewer = MjRenderContextOffscreen(sim)
         # self.viewer.cam.fixedcamid = 3
@@ -201,7 +202,8 @@ class ddpg_agent:
     def _preproc_inputs_image(self, obs_img, g):
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
-        g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
+        #g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
+        g_norm = torch.tensor(g, dtype=torch.float32)
         if self.args.cuda:
             obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
@@ -367,6 +369,16 @@ class ddpg_agent:
     # do the evaluation
     def _eval_agent(self):
         total_success_rate = []
+
+        # load model
+        model_path = './test.pt'
+        torch.save(self.actor_network.state_dict(), model_path)
+        loaded_model = new_actor(self.env_params)
+        loaded_model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
+
+        if self.args.cuda:
+            loaded_model.cuda(MPI.COMM_WORLD.Get_rank())
+
         for _ in range(self.args.n_test_rollouts):
             per_success_rate = []
             observation = self.env.reset()
@@ -377,7 +389,7 @@ class ddpg_agent:
                 with torch.no_grad():
                     if self.image_based:
                         o_tensor, g_tensor = self._preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
-                        pi = self.actor_network(o_tensor, g_tensor)
+                        pi = loaded_model(o_tensor, g_tensor)
                     else:
                         input_tensor = self._preproc_inputs(obs, g)
                         pi = self.actor_network(input_tensor)
