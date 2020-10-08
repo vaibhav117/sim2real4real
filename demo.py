@@ -6,6 +6,15 @@ from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffs
 import numpy as np
 from mujoco_py.generated import const
 
+
+import cv2
+import numpy as np
+
+
+video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
+
+
+
 def get_env_params(env):
     obs = env.reset()
     # close the environment
@@ -30,7 +39,7 @@ def _preproc_inputs_image(obs_img, g, cuda):
 def _eval_agent(a_n, env, args, image_based=True, cuda=False):
 
         # load model
-        env = gym.make('FetchReach-v1')
+        env = gym.make('FetchPush-v1')
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
         # self.viewer.cam.fixedcamid = 3
@@ -40,7 +49,7 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
         viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = viewer
 
-        model_path = './test.pt'
+        model_path = '../../test.pt'
         loaded_model = new_actor(get_env_params(env))
         loaded_model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
 
@@ -48,13 +57,20 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
             loaded_model.cuda()
 
         total_success_rate = []
+        rollouts = []
         for _ in range(args.n_test_rollouts):
             per_success_rate = []
             observation = env.reset()
             obs = observation['observation']
             g = observation['desired_goal']
+            rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
             for _ in range(env._max_episode_steps):
+                # env.render()
+                rollout.append(obs_img)
+                video.write(obs_img)
+                cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
+                cv2.waitKey(0)
                 with torch.no_grad():
                     if image_based:
                         o_tensor, g_tensor = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
@@ -70,15 +86,13 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
                 g = observation_new['desired_goal']
                 per_success_rate.append(info['is_success'])
             total_success_rate.append(per_success_rate)
+            rollouts.append(rollout)
+        cv2.destroyAllWindows()
+        video.release()
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         print(local_success_rate)
         #global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
-
-
-
-
-
 
 
 
@@ -98,9 +112,9 @@ if __name__ == '__main__':
     image_based = True
     args = get_args()
     # load the model param
-    # model_path = args.save_dir + args.env_name + '/model.pt'
-    model_path = './test.pt'
-    model = torch.load(model_path, map_location=lambda storage, loc: storage)
+    model_path = args.save_dir + args.env_name + '/model.pt'
+    # model_path = '../../test.pt'
+    o_mean, o_std, g_mean, g_std, model = torch.load(model_path, map_location=lambda storage, loc: storage)
     # create the environment
     env = gym.make(args.env_name)
     # get the env param
@@ -113,18 +127,22 @@ if __name__ == '__main__':
                   }
 
     if image_based:
+        # env = gym.make('FetchPush-v1')
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
-        viewer.cam.fixedcamid = 3
-        viewer.cam.type = const.CAMERA_FIXED
+        # self.viewer.cam.fixedcamid = 3
+        # self.viewer.cam.type = const.CAMERA_FIXED
+        viewer.cam.distance = 1.2
+        viewer.cam.azimuth = 180
+        viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = viewer
 
     # create the actor network
     actor_network = new_actor(env_params)
     actor_network.load_state_dict(model)
     # actor_network.eval()
-    _eval_agent(actor_network, env, args)
-    exit()
+    # _eval_agent(actor_network, env, args)
+    # exit()
     for i in range(args.demo_length):
         observation = env.reset()
         # start to do the demo
@@ -135,14 +153,17 @@ if __name__ == '__main__':
 
             if image_based:
                 obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
+                np_obs_img = obs_img.copy()
                 #print(obs_img.shape)
                 obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
                 obs_img = obs_img.permute(0, 3, 1, 2)
-                g_norm = torch.tensor(g, dtype=torch.float32).unsqueeze(0)
-                #g_clip = np.clip(g, -args.clip_obs, args.clip_obs)
-                #g_norm = torch.tensor(np.clip((g_clip - g_mean) / (g_std), -args.clip_range, args.clip_range),  dtype=torch.float32).unsqueeze(0)
+                # g_norm = torch.tensor(g, dtype=torch.float32).unsqueeze(0)
+                g_clip = np.clip(g, -args.clip_obs, args.clip_obs)
+                g_norm = torch.tensor(np.clip((g_clip - g_mean) / (g_std), -args.clip_range, args.clip_range),  dtype=torch.float32).unsqueeze(0)
             else:
                 inputs = process_inputs(obs, g, o_mean, o_std, g_mean, g_std, args)
+            cv2.imshow('frame', cv2.resize(np_obs_img, (200,200)))
+            cv2.waitKey(0)
 
             with torch.no_grad():
                 if not image_based:
