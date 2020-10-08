@@ -16,6 +16,7 @@ from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffs
 from mujoco_py.generated import const
 from rl_modules.utils import plot_grad_flow
 from torch import autograd
+import time
 
 """
 ddpg with HER (MPI-version)
@@ -37,7 +38,8 @@ class ddpg_agent:
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
-        self.image_based = True
+        self.image_based = True if args.image else False
+        print("Training image based RL ? : {}".format(self.image_based))
         # create the network
         if not self.image_based:
             self.actor_network = actor(env_params)
@@ -101,8 +103,10 @@ class ddpg_agent:
         # start to collect samples
         for epoch in range(self.args.n_epochs):
             for _ in range(self.args.n_cycles):
+                # start_of_lel = time.time()
                 mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs = [], [], [], [], []
                 for _ in range(self.args.num_rollouts_per_mpi):
+                    start_per_rollout = time.time()
                     # reset the rollouts
                     ep_obs, ep_ag, ep_g, ep_actions, ep_img_obs = [], [], [], [], []
                     # reset the environment
@@ -149,6 +153,9 @@ class ddpg_agent:
                         if self.image_based:
                             obs_img = obs_image_new
 
+                    # end_per_rollout = time.time()
+                    # print("Per roll out {}".format(end_per_rollout - start_per_rollout))
+
                     ep_obs.append(obs.copy())
                     ep_ag.append(ag.copy())
                     if self.image_based:
@@ -160,6 +167,7 @@ class ddpg_agent:
                     if self.image_based:
                         mb_img_obs.append(ep_img_obs)
                 # convert them into arrays
+                # start_of_lel = time.time()
                 mb_obs = np.array(mb_obs)
                 mb_ag = np.array(mb_ag)
                 mb_g = np.array(mb_g)
@@ -176,10 +184,15 @@ class ddpg_agent:
 
                 for _ in range(self.args.n_batches):
                     # train the network
+                    # update_net_time = time.time()
                     self._update_network()
+                    # update_net_time_end = time.time()
+                    # print("Update net time {}".format(update_net_time_end - update_net_time))
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
+                # end_of_lel = time.time()
+                # print("Updating stuff {}".format(end_of_lel - start_of_lel))
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
@@ -202,8 +215,8 @@ class ddpg_agent:
     def _preproc_inputs_image(self, obs_img, g):
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
-        #g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
-        g_norm = torch.tensor(g, dtype=torch.float32)
+        g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32)
+        # g_norm = torch.tensor(g, dtype=torch.float32)
         if self.args.cuda:
             obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
@@ -369,16 +382,16 @@ class ddpg_agent:
     # do the evaluation
     def _eval_agent(self):
         total_success_rate = []
-
+        '''
         # load model
         model_path = './test.pt'
         torch.save(self.actor_network.state_dict(), model_path)
         loaded_model = new_actor(self.env_params)
         loaded_model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
-
+        
         if self.args.cuda:
             loaded_model.cuda(MPI.COMM_WORLD.Get_rank())
-
+        '''
         for _ in range(self.args.n_test_rollouts):
             per_success_rate = []
             observation = self.env.reset()
@@ -389,7 +402,7 @@ class ddpg_agent:
                 with torch.no_grad():
                     if self.image_based:
                         o_tensor, g_tensor = self._preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
-                        pi = loaded_model(o_tensor, g_tensor)
+                        pi = self.actor_network(o_tensor, g_tensor)
                     else:
                         input_tensor = self._preproc_inputs(obs, g)
                         pi = self.actor_network(input_tensor)
