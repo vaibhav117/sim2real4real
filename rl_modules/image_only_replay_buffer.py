@@ -1,11 +1,4 @@
-import threading
-import numpy as np
-
-"""
-the replay buffer here is basically from the openai baselines code
-
-"""
-class replay_buffer:
+class image_replay_buffer:
     def __init__(self, env_params, buffer_size, sample_func, image_based, sym_image):
         self.env_params = env_params
         self.T = env_params['max_timesteps']
@@ -17,12 +10,10 @@ class replay_buffer:
         self.image_based = image_based
         self.sym_image = sym_image
         # create the buffer to store info
-        self.buffers = {'obs_states': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, 3], dtype=np.uint8),
-                        'ach_goal_states': np.empty([self.size, self.T + 1, self.env_params['goal']]),
-                        'goal_states': np.empty([self.size, self.T+1, self.env_params['goal']]),
-                        'actions': np.empty([self.size, self.T, self.env_params['action']]),
-                        'her_obs_imgs': np.empty([self.size, self.T + 1, 100, 100, 3],  dtype=np.uint8),
+        self.buffers = {
+                        'obs_imgs': np.empty([buffer_size, 100, 100, 3], dtype=np.uint8),
+                        'reward': np.empty([buffer_size], dtype=np.uint8),
+                        'actions': np.empty([buffer_size, self.env_params['action']]),
                         }
         # thread lock
         self.lock = threading.Lock()

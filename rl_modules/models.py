@@ -26,9 +26,9 @@ class actor(nn.Module):
 
         return actions
 
-class new_actor(nn.Module):
+class asym_goal_outside_image(nn.Module):
     def __init__(self, env_params):
-        super(new_actor, self).__init__()
+        super(asym_goal_outside_image, self).__init__()
         self.max_action = env_params['action_max']
         self.cnn1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=2)
         self.bn1 = nn.BatchNorm2d(num_features=32)
@@ -114,18 +114,3 @@ class critic(nn.Module):
 
         return q_value
 
-class img_actor(nn.Module):
-    def __init__(self):
-        super(img_actor, self).__init__()
-        self.encoder = get_encoder('resnet18')
-        self.compress = nn.Conv2d(in_channels=512, out_channels=32, kernel_size=2)
-        self.compress2 = nn.Conv2d(in_channels=32, out_channels=10, kernel_size=2)
-        self.fc1 = nn.Linear(40, 10)
-
-    def forward(self, x):
-        bt_sz = x.size(0)
-        x = self.encoder(x)[-1]
-        x = F.relu(self.compress(x))
-        x = F.relu(self.compress2(x))
-        x = self.fc1(x.view(bt_sz,-1))
-        return x

@@ -5,7 +5,7 @@ import numpy as np
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.replay_buffer import replay_buffer
-from rl_modules.models import actor, critic, img_actor, new_actor, resnet_actor
+from rl_modules.models import actor, critic, asym_goal_outside_image
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler
 import cv2
@@ -17,6 +17,107 @@ from mujoco_py.generated import const
 from rl_modules.utils import plot_grad_flow
 from torch import autograd
 import time
+import torch.nn as nn
+
+def show_video(img):
+    cv2.imshow('frame', cv2.resize(img, (200,200)))
+    cv2.waitKey(0)
+
+
+class Trajectory:
+
+    def __init__(self):
+        self.obs_states = []
+        self.goal_states = []
+        self.ach_goal_states = []
+        self.actions = []
+        self.obs_imgs = []
+        self.env_states = []
+        self.her_obs_imgs = []
+    
+    def add(self, observation):
+        self.obs_states.append(observation['observation'].copy())
+        self.goal_states.append(observation['desired_goal'].copy())
+        self.ach_goal_states.append(observation['achieved_goal'].copy())
+        if observation['action'] is not None: # we do not get last action in rollout
+            self.actions.append(observation['action'].copy())
+        self.obs_imgs.append(observation['observation_image'].copy())
+        self.env_states.append(observation['env_state'])
+
+    def get(self):
+        raise NotImplementedError
+    
+    def sample_her(self, env):
+        '''
+        Stateful function which computes the her sampled image observations
+
+        Return [image, action, next_image, reward]
+
+        80% of these tuples will have HER goals. 20% of these will have regular stuff
+        '''
+
+        # TODO: do tonight
+        end_goal = self.ach_goal_states[-1]
+        ep_goal_img = []
+        for i, s in enumerate(self.env_states):
+            # acquired_goal = self.ach_goal_states[i]
+            env.sim.set_state(s)
+            reset_goal_fetch_reach(env, end_goal) # put marker next robot flipper: image obs of aquiring goal
+            g_image = render_image_without_fuss(env)
+            # show_video(g_image)
+            ep_goal_img.append(g_image)
+
+        self.her_obs_imgs = ep_goal_img
+
+
+def reset_goal_fetch_reach(env, ach_goal):
+    sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
+    site_id = env.env.sim.model.site_name2id('target0')
+    env.env.sim.model.site_pos[site_id] = ach_goal - sites_offset[0]
+    env.env.sim.forward()
+    return env
+
+def render_image_without_fuss(env):
+    env.env._get_viewer("rgb_array").render(100, 100)
+    data = env.env._get_viewer("rgb_array").read_pixels(100, 100, depth=False)
+    img = data[::-1, :, :]
+    return img
+
+
+def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
+    """
+    Creates actor, critic, target nets and syncs nets across CPUs
+    """
+
+    actor_network = actor_fn(env_params)
+    critic_network = critic_fn(env_params)
+
+    # sync the networks across the cpus
+    sync_networks(actor_network)
+    sync_networks(critic_network)
+
+    # init target nets
+    actor_target_network = actor_fn(env_params)
+    critic_target_network = critic_fn(env_params)
+
+    # load same weights as non target nets
+    actor_target_network.load_state_dict(actor_network.state_dict())
+    critic_target_network.load_state_dict(critic_network.state_dict())
+
+    return actor_network, actor_target_network, critic_network, critic_target_network
+
+def model_factory(task, env_params) -> [nn.Module, nn.Module]:
+    """
+    Returns actor critic for experiment setup
+    """
+    if task == "sym_state":
+        return get_actor_critic_and_target_nets(actor, critic, env_params)
+    elif task == "asym_goal_outside_image":
+        return get_actor_critic_and_target_nets(asym_goal_outside_image, critic, env_params)
+    elif task == "asym_goal_in_image":
+        return get_actor_critic_and_target_nets(asym_goal_in_image, critic, env_params)
+    elif task == "sym_image":
+        return get_actor_critic_and_target_nets(sym_image, sym_image, env_params)
 
 """
 ddpg with HER (MPI-version)
@@ -38,33 +139,17 @@ class ddpg_agent:
         env.env._viewers['rgb_array'] = self.viewer
 
         self.env_params = env_params
-        self.image_based = True if args.image else False
-        print("Training image based RL ? : {}".format(self.image_based))
+
+        # TODO: remove
+        self.image_based = True
+        self.sym_image = True
+
         # create the network
-        if not self.image_based:
-            self.actor_network = actor(env_params)
-        else:
-            self.actor_network = new_actor(env_params)
-            #self.actor_network = resnet_actor(env_params)
-        self.critic_network = critic(env_params)
+        self.actor_network, self.actor_target_network, self.critic_network, self.critic_target_network = model_factory(args.task, env_params)
 
-        # sync the networks across the cpus
-        sync_networks(self.actor_network)
-        sync_networks(self.critic_network)
-        # build up the target network
-        if not self.image_based:
-            self.actor_target_network = actor(env_params)
-        else:
-            #self.actor_target_network = resnet_actor(env_params)
-            self.actor_target_network = new_actor(env_params)
-
-        self.critic_target_network = critic(env_params)
-        # load the weights into the target networks
-        self.actor_target_network.load_state_dict(self.actor_network.state_dict())
-        self.critic_target_network.load_state_dict(self.critic_network.state_dict())
         # if use gpu
         if self.args.cuda:
-            print("use the GPU")
+            print("Using the GPU")
             self.actor_network.cuda(MPI.COMM_WORLD.Get_rank())
             self.critic_network.cuda(MPI.COMM_WORLD.Get_rank())
             self.actor_target_network.cuda(MPI.COMM_WORLD.Get_rank())
@@ -77,12 +162,14 @@ class ddpg_agent:
         self.her_module = her_sampler(self.args.replay_strategy,
                             self.args.replay_k, 
                             self.env.compute_reward,
-                            self.image_based)
+                            self.image_based,
+                            self.sym_image)
         # create the replay buffer
         self.buffer = replay_buffer(self.env_params, 
                                     self.args.buffer_size, 
                                     self.her_module.sample_her_transitions,
-                                    self.image_based)
+                                    self.image_based,
+                                    self.sym_image)
         # create the normalizer
         self.o_norm = normalizer(size=env_params['obs'], default_clip_range=self.args.clip_range)
         self.g_norm = normalizer(size=env_params['goal'], default_clip_range=self.args.clip_range)
@@ -95,6 +182,48 @@ class ddpg_agent:
             if not os.path.exists(self.model_path):
                 os.mkdir(self.model_path)
 
+
+    def get_obs(self, task, action=None, step=False):
+        if step == False:
+            obs = self.env.reset()
+        else:
+            obs, _, _, info = self.env.step(action)
+        if task == "sym_state":
+            obs["observation_image"] = None
+            obs["env_state"] = self.env.env.sim.get_state()
+            return obs
+        elif task == "asym_goal_outside_image":
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["env_state"] = self.env.env.sim.get_state()
+            return obs
+        elif task == "asym_goal_in_image":
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["env_state"] = self.env.env.sim.get_state()
+            return obs
+        elif task == "sym_image":
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["env_state"] = self.env.env.sim.get_state()
+            return obs
+
+    
+
+    def get_policy(self, task, observation):
+        if task == "sym_state":
+            input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
+            pi = self.actor_network(input_tensor)
+            return pi
+        elif task == "asym_goal_outside_image":
+            o_tensor, g_tensor = self._preproc_inputs_image(observation["observation_image"][np.newaxis, :].copy(), observation["desired_goal"][np.newaxis, :].copy())
+            pi = self.actor_network(o_tensor, g_tensor)
+            return pi
+        elif task == "asym_goal_in_image":
+            raise NotImplementedError
+        elif task == "sym_image":
+            raise NotImplementedError
+    
+    def record_trajectory(self, observation):
+        raise NotImplementedError
+
     def learn(self):
         """
         train the network
@@ -104,90 +233,59 @@ class ddpg_agent:
         for epoch in range(self.args.n_epochs):
             for _ in range(self.args.n_cycles):
                 # start_of_lel = time.time()
-                mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs = [], [], [], [], []
+                mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs, mb_g_obs = [], [], [], [], [], []
+                trajectories = []
                 for _ in range(self.args.num_rollouts_per_mpi):
                     start_per_rollout = time.time()
                     # reset the rollouts
-                    ep_obs, ep_ag, ep_g, ep_actions, ep_img_obs = [], [], [], [], []
+                    ep_obs, ep_ag, ep_g, ep_actions, ep_img_obs, ep_go, ep_states = [], [], [], [], [], [], []
+                    trajectory = Trajectory()
                     # reset the environment
-                    observation = self.env.reset()
-                    obs = observation['observation']
+                    observation = self.get_obs(self.args.task)
 
-                    if self.image_based:
-                        obs_img = self.env.render(mode="rgb_array", height=100, width=100)
-                        #plt.imshow(obs_img)
-                        # plt.savefig('image_observation.png')
-                        #plt.show()
-                        # exit()
+                    obs = observation['observation']
+                    obs_img = observation['observation_image']
 
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
                     # start to collect samples
                     for t in range(self.env_params['max_timesteps']):
                         with torch.no_grad():
-                            if not self.image_based:
-                                input_tensor = self._preproc_inputs(obs, g)
-                                pi = self.actor_network(input_tensor)
-                            else:
-                                o_tensor, g_tensor = self._preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
-                                pi = self.actor_network(o_tensor, g_tensor)
+                            pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
-                        # feed the actions into the environment
-                        observation_new, _, _, info = self.env.step(action)
-                        obs_new = observation_new['observation']
+                        
+                        observation["action"] = action
 
-                        if self.image_based:
-                            obs_image_new = self.env.render(mode="rgb_array", height=100, width=100)
-                            ep_img_obs.append(obs_img.copy())
-
-                        ag_new = observation_new['achieved_goal']
                         # append rollouts
-                        ep_obs.append(obs.copy())
-                        ep_ag.append(ag.copy())
-                        ep_g.append(g.copy())
-                        ep_actions.append(action.copy())
-                        # re-assign the observation
-                        obs = obs_new
-                        ag = ag_new
+                        trajectory.add(observation)
 
-                        if self.image_based:
-                            obs_img = obs_image_new
+                        # feed the actions into the environment
+                        observation_new = self.get_obs(self.args.task, action=action, step=True)
+                        # reassign observation
+                        observation = observation_new
+                        observation["action"] = None
 
-                    # end_per_rollout = time.time()
-                    # print("Per roll out {}".format(end_per_rollout - start_per_rollout))
+                    # add final obs to trajectory
+                    trajectory.add(observation)
 
-                    ep_obs.append(obs.copy())
-                    ep_ag.append(ag.copy())
-                    if self.image_based:
-                        ep_img_obs.append(obs_img.copy())
-                    mb_obs.append(ep_obs)
-                    mb_ag.append(ep_ag)
-                    mb_g.append(ep_g)
-                    mb_actions.append(ep_actions)
-                    if self.image_based:
-                        mb_img_obs.append(ep_img_obs)
-                # convert them into arrays
-                # start_of_lel = time.time()
-                mb_obs = np.array(mb_obs)
-                mb_ag = np.array(mb_ag)
-                mb_g = np.array(mb_g)
-                mb_actions = np.array(mb_actions)
-                if self.image_based:    
-                    mb_img_obs = np.array(mb_img_obs)
-                # store the episodes
-                if self.image_based:
-                    self.buffer.store_episode([mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs])
-                    self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs])
-                else:
-                    self.buffer.store_episode([mb_obs, mb_ag, mb_g, mb_actions])
-                    self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions])
+                    # save trajectory
+                    trajectories.append(trajectory)
+                    
+                    # store images all all steps of trajectory with achieved goal in the image
+                    trajectory.sample_her(self.env)
+
+                self.buffer.store_trajectories(trajectories)
+
+                # TODO: Normalize stuff ? Is this needed ? It helps with purely state based training.
+                # if self.sym_image:
+                #     self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs, mb_g_obs])
+                # elif self.image_based:
+                #     self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions, mb_img_obs])
+                # else:
+                #     self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions])
 
                 for _ in range(self.args.n_batches):
-                    # train the network
-                    # update_net_time = time.time()
                     self._update_network()
-                    # update_net_time_end = time.time()
-                    # print("Update net time {}".format(update_net_time_end - update_net_time))
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
@@ -237,7 +335,11 @@ class ddpg_agent:
 
     # update the normalizer
     def _update_normalizer(self, episode_batch):
-        if self.image_based:
+        if self.sym_image:
+            mb_obs, mb_ag, mb_g, mb_actions, mb_obs_img, mb_g_obs = episode_batch
+            mb_obs_img_next = mb_obs_img[:, 1:, :]
+            mb_g_o_next = mb_g_obs[:, 1:, :]
+        elif self.image_based:
             mb_obs, mb_ag, mb_g, mb_actions, mb_obs_img = episode_batch
             mb_obs_img_next = mb_obs_img[:, 1:, :]
         else:
@@ -248,7 +350,19 @@ class ddpg_agent:
         # get the number of normalization transitions
         num_transitions = mb_actions.shape[1]
         # create the new buffer to store them
-        if self.image_based:
+        if self.sym_image:
+            buffer_temp = {'obs': mb_obs, 
+                'obs_img': mb_obs_img,
+                'ag': mb_ag,
+                'g': mb_g, 
+                'actions': mb_actions, 
+                'obs_next': mb_obs_next,
+                'obs_img_next': mb_obs_img_next,
+                'ag_next': mb_ag_next,
+                'g_o': mb_g_obs,
+                'g_o_next': mb_g_obs
+            }
+        elif self.image_based:
             buffer_temp = {'obs': mb_obs, 
                 'obs_img': mb_obs_img,
                 'ag': mb_ag,
@@ -310,6 +424,9 @@ class ddpg_agent:
         transitions = self.buffer.sample(self.args.batch_size)
         # pre-process the observation and goal
         o, o_next, g = transitions['obs'], transitions['obs_next'], transitions['g']
+
+        fig, axs = plt.subplots(1,2)
+
         transitions['obs'], transitions['g'] = self._preproc_og(o, g)
         transitions['obs_next'], transitions['g_next'] = self._preproc_og(o_next, g)
         # start to do the update

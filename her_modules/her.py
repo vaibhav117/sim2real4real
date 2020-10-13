@@ -1,10 +1,12 @@
 import numpy as np
+import matplotlib.pyplot as plt 
 
 class her_sampler:
-    def __init__(self, replay_strategy, replay_k, reward_func=None, image_based=False):
+    def __init__(self, replay_strategy, replay_k, reward_func=None, image_based=False, sym_image=False):
         self.replay_strategy = replay_strategy
         self.replay_k = replay_k
         self.image_based = image_based
+        self.sym_image = sym_image
         if self.replay_strategy == 'future':
             self.future_p = 1 - (1. / (1 + replay_k))
         else:
@@ -25,15 +27,16 @@ class her_sampler:
         future_offset = future_offset.astype(int)
         future_t = (t_samples + 1 + future_offset)[her_indexes]
         # replace go with achieved goal
-        future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
-
-        # if self.image_based:
-        #     future_img_obs = episode_batch['obs_img'][episode_idxs[her_indexes], future_t]
-        #     transitions['g_o'][her_indexes] = future_img_obs
-
-        transitions['g'][her_indexes] = future_ag
+        future_ag = episode_batch['ach_goal_states'][episode_idxs[her_indexes], future_t]
+        
+        transitions['goal_states'][her_indexes] = future_ag
         # to get the params to re-compute reward
-        transitions['r'] = np.expand_dims(self.reward_func(transitions['ag_next'], transitions['g'], None), 1)
+        transitions['r'] = np.expand_dims(self.reward_func(transitions['ach_goal_states_next'], transitions['goal_states'], None), 1)
         transitions = {k: transitions[k].reshape(batch_size, *transitions[k].shape[1:]) for k in transitions.keys()}
+
+        return transitions
+    
+    def sample_her_transitions_image_based(self, episode_batch, batch_size_in_transitions):
+         
 
         return transitions
