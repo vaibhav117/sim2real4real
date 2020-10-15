@@ -55,28 +55,8 @@ class replay_buffer:
     
 
     # store the episode
-    def store_trajectories(self, trajectories):
-        obs_states = []
-        goal_states = []
-        ach_goal_states = []
-        obs_imgs = []
-        her_obs_imgs = []
-        actions = []
-
-        for traj in trajectories:
-            obs_states.append(traj.obs_states)
-            goal_states.append(traj.goal_states)
-            ach_goal_states.append(traj.ach_goal_states)
-            obs_imgs.append(traj.obs_imgs)
-            her_obs_imgs.append(traj.her_obs_imgs)
-            actions.append(traj.actions)
-        
-        obs_states = np.array(obs_states)
-        goal_states = np.array(goal_states)
-        ach_goal_states = np.array(ach_goal_states)
-        obs_imgs = np.array(obs_imgs)
-        her_obs_imgs = np.array(her_obs_imgs)
-        actions = np.array(actions)
+    def store_trajectories(self, episode_batch):
+        obs_states, goal_states, ach_goal_states, obs_imgs, actions = episode_batch
 
         batch_size = obs_states.shape[0] 
         with self.lock:
@@ -87,10 +67,30 @@ class replay_buffer:
             self.buffers['goal_states'][idxs] = goal_states
             self.buffers['actions'][idxs] = actions
             self.buffers['obs_imgs'][idxs] = obs_imgs
-            self.buffers['her_obs_imgs'][idxs] = her_obs_imgs 
             self.n_transitions_stored += self.T * batch_size
 
         print(batch_size)
+    
+    def create_batch(self, trajectories):
+        obs_states = []
+        goal_states = []
+        ach_goal_states = []
+        obs_imgs = []
+        actions = []
+
+        for traj in trajectories:
+            obs_states.append(traj.obs_states)
+            goal_states.append(traj.goal_states)
+            ach_goal_states.append(traj.ach_goal_states)
+            obs_imgs.append(traj.obs_imgs)
+            actions.append(traj.actions)
+        
+        obs_states = np.array(obs_states)
+        goal_states = np.array(goal_states)
+        ach_goal_states = np.array(ach_goal_states)
+        obs_imgs = np.array(obs_imgs)
+        actions = np.array(actions)
+        return [obs_states, goal_states, ach_goal_states, obs_imgs, actions]
     
     # sample the data from the replay buffer
     def sample(self, batch_size):
