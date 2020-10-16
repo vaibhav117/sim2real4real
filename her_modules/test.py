@@ -36,4 +36,4 @@ a = {
 def test():
     b = sample_her_transitions(a)
     print(b)
-test()
+# test()

@@ -309,7 +309,9 @@ class ddpg_agent:
     def normalize_states_and_store(self, trajectories, task):
         if task == 'sym_state':
             # Implement: Temporary just to maintain API
-            return
+            episode_batch = self.buffer.create_batch(trajectories)
+            self.buffer.store_trajectories(episode_batch)
+            self._update_normalizer(episode_batch)
         elif task == 'asym_goal_outside_image':
             episode_batch = self.buffer.create_batch(trajectories)
             self.buffer.store_trajectories(episode_batch)

@@ -68,8 +68,6 @@ class replay_buffer:
             self.buffers['actions'][idxs] = actions
             self.buffers['obs_imgs'][idxs] = obs_imgs
             self.n_transitions_stored += self.T * batch_size
-
-        print(batch_size)
     
     def create_batch(self, trajectories):
         obs_states = []
