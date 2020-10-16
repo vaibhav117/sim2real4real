@@ -114,8 +114,10 @@ class Trajectory:
                 goals.append(self.ach_goal_states[i+1]) # add HER magic
                 next_goals.append(self.goal_states[i+1]) # do we even need this ?
                 rews.append(env.compute_reward(self.ach_goal_states[i+1], self.ach_goal_states[i+1], None)) # compute reward at current state, action
+                rews.append(1)
                 next_obs_states.append(self.obs_states[i+1])
                 acts.append(self.actions[i])
+                print(rews[-1])
             else:
                 # add normal sample
                 obs_states.append(self.obs_states[i])
@@ -124,6 +126,7 @@ class Trajectory:
                 rews.append(env.compute_reward(self.goal_states[i], self.ach_goal_states[i+1], None)) # state, action-> next goal. goal wanted: current goal
                 next_obs_states.append(self.obs_states[i+1])
                 acts.append(self.actions[i])
+                # print(rews[-1])
 
         return np.array(obs_states), np.array(next_obs_states), np.array(acts), np.array(rews), np.array(goals), np.array(next_goals)
 
@@ -239,8 +242,13 @@ class ddpg_agent:
     def get_buffer(self, task):
         if task == 'sym_state':
             # Temporary: Fix
-            return state_replay_buffer(self.env_params, 
-                    self.args.buffer_size)
+            # return state_replay_buffer(self.env_params, 
+            #         self.args.buffer_size)
+            return replay_buffer(self.env_params, 
+                    self.args.buffer_size, 
+                    self.her_module.sample_her_transitions,
+                    self.image_based,
+                    self.sym_image)
         elif task == 'asym_goal_outside_image':
             return replay_buffer(self.env_params, 
                     self.args.buffer_size, 
@@ -357,9 +365,9 @@ class ddpg_agent:
                         obs, next_obs, actions, rews = trajectory.sample_her_images(self.env)
                         self.buffer.store_episode(obs, next_obs, actions, rews)
                     
-                    if self.args.task == 'sym_state':
-                        obs_states, next_obs_states, acts, rews, goals, next_goals = trajectory.sample_her_states(self.env)
-                        self.buffer.store_episode(obs_states, next_obs_states, acts, rews, goals, next_goals)
+                    # if self.args.task == 'sym_state':
+                    #     obs_states, next_obs_states, acts, rews, goals, next_goals = trajectory.sample_her_states(self.env)
+                    #     self.buffer.store_episode(obs_states, next_obs_states, acts, rews, goals, next_goals)
 
 
                 # TODO: Normalize stuff ? Is this needed ? It helps with purely state based training.
