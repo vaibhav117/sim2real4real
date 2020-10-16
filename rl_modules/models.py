@@ -110,10 +110,10 @@ class sym_image(nn.Module):
         self.bn4 = nn.BatchNorm2d(num_features=1)
         self.flatten = nn.Flatten()
         # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
-        self.fc1 = nn.Linear(81, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 512)
-        self.action_out = nn.Linear(512, env_params['action'])
+        self.fc1 = nn.Linear(81, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, 256)
+        self.action_out = nn.Linear(256, env_params['action'])
 
     def forward(self, x):
         x = F.relu(self.bn1(self.cnn1(x)))
@@ -145,10 +145,10 @@ class sym_image_critic(nn.Module):
         self.bn4 = nn.BatchNorm2d(num_features=1)
         self.flatten = nn.Flatten()
         # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
-        self.fc1 = nn.Linear(85, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 512)
-        self.action_out = nn.Linear(512, 1)
+        self.fc1 = nn.Linear(85, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, 256)
+        self.action_out = nn.Linear(256, 1)
 
     def forward(self, x, actions):
         x = F.relu(self.bn1(self.cnn1(x)))

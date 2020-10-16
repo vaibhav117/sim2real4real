@@ -35,8 +35,3 @@ class her_sampler:
         transitions = {k: transitions[k].reshape(batch_size, *transitions[k].shape[1:]) for k in transitions.keys()}
 
         return transitions
-    
-    def sample_her_transitions_image_based(self, episode_batch, batch_size_in_transitions):
-         
-
-        return transitions

@@ -5,7 +5,7 @@ import numpy as np
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.replay_buffer import replay_buffer
-from rl_modules.image_only_replay_buffer import image_replay_buffer
+from rl_modules.image_only_replay_buffer import image_replay_buffer, state_replay_buffer
 from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler
@@ -48,7 +48,7 @@ class Trajectory:
     def get(self):
         raise NotImplementedError
     
-    def sample_her(self, env):
+    def sample_her_images(self, env):
         '''
         Stateful function which computes the her sampled image observations
 
@@ -89,6 +89,43 @@ class Trajectory:
                 acts.append(self.actions[i])
 
         return np.array(obs), np.array(next_obs), np.array(acts), np.array(rews)
+
+    def sample_her_states(self, env):
+        '''
+        Stateful function which computes the her sampled image observations
+
+        Return [image, action, next_image, reward]
+
+        80% of these tuples will have HER goals. 20% of these will have regular stuff
+        '''
+        her_p = 0.8 # with prob 80% sample golas with HER else just leave state as it is.
+        obs_states = []
+        acts = []
+        next_obs_states = []
+        rews = []
+        goals = []
+        next_goals = []
+
+        T = len(self.actions)
+        for i in range(T):
+            if np.random.uniform(size=1) < her_p:
+                # do HER
+                obs_states.append(self.obs_states[i])
+                goals.append(self.ach_goal_states[i+1]) # add HER magic
+                next_goals.append(self.goal_states[i+1]) # do we even need this ?
+                rews.append(env.compute_reward(self.ach_goal_states[i+1], self.ach_goal_states[i+1], None)) # compute reward at current state, action
+                next_obs_states.append(self.obs_states[i+1])
+                acts.append(self.actions[i])
+            else:
+                # add normal sample
+                obs_states.append(self.obs_states[i])
+                goals.append(self.goal_states[i])
+                next_goals.append(self.goal_states[i+1]) # do we even need this ?
+                rews.append(env.compute_reward(self.goal_states[i], self.ach_goal_states[i+1], None)) # state, action-> next goal. goal wanted: current goal
+                next_obs_states.append(self.obs_states[i+1])
+                acts.append(self.actions[i])
+
+        return np.array(obs_states), np.array(next_obs_states), np.array(acts), np.array(rews), np.array(goals), np.array(next_goals)
 
 
 def reset_goal_fetch_reach(env, ach_goal):
@@ -200,7 +237,11 @@ class ddpg_agent:
                 os.mkdir(self.model_path)
 
     def get_buffer(self, task):
-        if task == 'sym_state' or task == 'asym_goal_outside_image':
+        if task == 'sym_state':
+            # Temporary: Fix
+            return state_replay_buffer(self.env_params, 
+                    self.args.buffer_size)
+        elif task == 'asym_goal_outside_image':
             return replay_buffer(self.env_params, 
                     self.args.buffer_size, 
                     self.her_module.sample_her_transitions,
@@ -258,7 +299,10 @@ class ddpg_agent:
         raise NotImplementedError
 
     def normalize_states_and_store(self, trajectories, task):
-        if task == 'sym_state' or task == 'asym_goal_outside_image':
+        if task == 'sym_state':
+            # Implement: Temporary just to maintain API
+            return
+        elif task == 'asym_goal_outside_image':
             episode_batch = self.buffer.create_batch(trajectories)
             self.buffer.store_trajectories(episode_batch)
             self._update_normalizer(episode_batch)
@@ -309,10 +353,13 @@ class ddpg_agent:
                     trajectories.append(trajectory)
                     
                     # store images all all steps of trajectory with achieved goal in the image
-                    obs, next_obs, actions, rews = trajectory.sample_her(self.env)
-
                     if self.args.task == 'asym_goal_in_image' or self.args.task == 'sym_image':
+                        obs, next_obs, actions, rews = trajectory.sample_her_images(self.env)
                         self.buffer.store_episode(obs, next_obs, actions, rews)
+                    
+                    if self.args.task == 'sym_state':
+                        obs_states, next_obs_states, acts, rews, goals, next_goals = trajectory.sample_her_states(self.env)
+                        self.buffer.store_episode(obs_states, next_obs_states, acts, rews, goals, next_goals)
 
 
                 # TODO: Normalize stuff ? Is this needed ? It helps with purely state based training.
@@ -377,7 +424,8 @@ class ddpg_agent:
         # get the number of normalization transitions
         num_transitions = mb_actions.shape[1]
         # create the new buffer to store them
-        buffer_temp = {'obs_states': mb_obs, 
+        buffer_temp = {
+            'obs_states': mb_obs, 
             'ach_goal_states': mb_ag,
             'goal_states': mb_g, 
             'actions': mb_actions, 
