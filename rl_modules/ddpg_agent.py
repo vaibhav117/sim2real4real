@@ -523,7 +523,7 @@ class ddpg_agent:
     def _get_losses(self, task, transitions):
         if task == 'sym_state':
             transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor = self._prepare_inputs_for_state_only(transitions)
-            print(inputs_next_norm_tensor.size())
+            # print(inputs_next_norm_tensor.size())
             with torch.no_grad():
                 actions_next = self.actor_target_network(inputs_next_norm_tensor)
                 q_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
@@ -593,7 +593,7 @@ class ddpg_agent:
             critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actor_loss = -self.critic_network(tensor_img, actions_real).mean()
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
-            print(actor_loss.item())
+            # print(actor_loss.item())
             return actor_loss, critic_loss
 
     # update the network
@@ -613,6 +613,7 @@ class ddpg_agent:
         critic_loss.backward()
         sync_grads(self.critic_network)
         self.critic_optim.step()
+        print(actor_loss.item())
         if MPI.COMM_WORLD.Get_rank() == 0:
             self.critic_loss.append(critic_loss.item())
             self.actor_loss.append(actor_loss.item())

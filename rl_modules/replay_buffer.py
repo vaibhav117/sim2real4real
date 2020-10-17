@@ -202,9 +202,10 @@ class new_replay_buffer:
         temp_buffers['ach_goal_states_next'] = temp_buffers['ach_goal_states'][:, 1:, :]
         next_states = []
         curr_states = []
-        for all_states in temp_buffers['env_states'][0]:
-            next_states.append(all_states[1:])
-            curr_states.append(all_states)
+        for buf in temp_buffers['env_states']:
+            for all_states in buf:
+                next_states.append(all_states[1:])
+                curr_states.append(all_states)
         temp_buffers['env_states_next'] = next_states
         temp_buffers['env_states'] = curr_states
         temp_buffers['obs_imgs_with_goals'] = temp_buffers['obs_imgs'].copy()
