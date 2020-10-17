@@ -11,7 +11,7 @@
 #cd /scratch/$USER/rl/sim2real4real/
 module load mpi/openmpi-4.0
 source activate rl
-pip install --upgrade --force-reinstall torch torchvision
+#pip install --upgrade --force-reinstall torch torchvision
 cd /home/ksc487/sim2real4real
 bash run.sh
 
