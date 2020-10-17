@@ -311,7 +311,7 @@ class ddpg_agent:
             obs_img = torch.tensor(obs_img, dtype=torch.float32)
             obs_img = obs_img.permute(0, 3, 1, 2)
             if self.args.cuda:
-                obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+                obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             pi = self.actor_network(obs_img)
             return pi
     
