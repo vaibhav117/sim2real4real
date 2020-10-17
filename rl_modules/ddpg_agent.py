@@ -4,11 +4,11 @@ from datetime import datetime
 import numpy as np
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
-from rl_modules.replay_buffer import replay_buffer
+from rl_modules.replay_buffer import replay_buffer, new_replay_buffer
 from rl_modules.image_only_replay_buffer import image_replay_buffer, state_replay_buffer
 from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
 from mpi_utils.normalizer import normalizer
-from her_modules.her import her_sampler
+from her_modules.her import her_sampler, her_sampler_new
 import cv2
 import itertools
 import matplotlib.pyplot as plt
@@ -98,7 +98,7 @@ class Trajectory:
 
         80% of these tuples will have HER goals. 20% of these will have regular stuff
         '''
-        her_p = 0.8 # with prob 80% sample golas with HER else just leave state as it is.
+        her_p = 0 # with prob 80% sample golas with HER else just leave state as it is.
         obs_states = []
         acts = []
         next_obs_states = []
@@ -117,7 +117,7 @@ class Trajectory:
                 rews.append(1)
                 next_obs_states.append(self.obs_states[i+1])
                 acts.append(self.actions[i])
-                print(rews[-1])
+                # print(rews[-1])
             else:
                 # add normal sample
                 obs_states.append(self.obs_states[i])
@@ -220,11 +220,7 @@ class ddpg_agent:
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
         self.critic_optim = torch.optim.Adam(self.critic_network.parameters(), lr=self.args.lr_critic)
         # her sampler
-        self.her_module = her_sampler(self.args.replay_strategy,
-                            self.args.replay_k, 
-                            self.env.compute_reward,
-                            self.image_based,
-                            self.sym_image)
+        self.her_module = self.get_her_module(args.task)
         # create the replay buffer
         self.buffer = self.get_buffer(args.task)
         # create the normalizer
@@ -239,11 +235,24 @@ class ddpg_agent:
             if not os.path.exists(self.model_path):
                 os.mkdir(self.model_path)
 
+    def get_her_module(self, task):
+        if task == 'sym_state' or task == 'asym_goal_outside_image':
+            return her_sampler(self.args.replay_strategy,
+                                self.args.replay_k, 
+                                self.env.compute_reward,
+                                self.image_based,
+                                self.sym_image)
+        else:
+            return her_sampler_new(self.args.replay_strategy,
+                                self.args.replay_k, 
+                                self.env,
+                                self.env.compute_reward,
+                                self.image_based,
+                                self.sym_image)        
+
+
     def get_buffer(self, task):
         if task == 'sym_state':
-            # Temporary: Fix
-            # return state_replay_buffer(self.env_params, 
-            #         self.args.buffer_size)
             return replay_buffer(self.env_params, 
                     self.args.buffer_size, 
                     self.her_module.sample_her_transitions,
@@ -256,8 +265,11 @@ class ddpg_agent:
                     self.image_based,
                     self.sym_image)
         elif task == 'asym_goal_in_image' or task == 'sym_image':
-            return image_replay_buffer(self.env_params, 
-                    self.args.buffer_size)
+            return new_replay_buffer(self.env_params, 
+                    self.args.buffer_size, 
+                    self.her_module.sample_her_transitions,
+                    self.image_based,
+                    self.sym_image)
 
     def get_obs(self, task, action=None, step=False):
         if step == False:
@@ -307,12 +319,12 @@ class ddpg_agent:
         raise NotImplementedError
 
     def normalize_states_and_store(self, trajectories, task):
-        if task == 'sym_state':
+        if task == 'sym_state' or task == 'asym_goal_outside_image':
             # Implement: Temporary just to maintain API
             episode_batch = self.buffer.create_batch(trajectories)
             self.buffer.store_trajectories(episode_batch)
             self._update_normalizer(episode_batch)
-        elif task == 'asym_goal_outside_image':
+        else:
             episode_batch = self.buffer.create_batch(trajectories)
             self.buffer.store_trajectories(episode_batch)
             self._update_normalizer(episode_batch)
@@ -363,9 +375,9 @@ class ddpg_agent:
                     trajectories.append(trajectory)
                     
                     # store images all all steps of trajectory with achieved goal in the image
-                    if self.args.task == 'asym_goal_in_image' or self.args.task == 'sym_image':
-                        obs, next_obs, actions, rews = trajectory.sample_her_images(self.env)
-                        self.buffer.store_episode(obs, next_obs, actions, rews)
+                    # if self.args.task == 'asym_goal_in_image' or self.args.task == 'sym_image':
+                    #     obs, next_obs, actions, rews = trajectory.sample_her_images(self.env)
+                    #     self.buffer.store_episode(obs, next_obs, actions, rews)
                     
                     # if self.args.task == 'sym_state':
                     #     obs_states, next_obs_states, acts, rews, goals, next_goals = trajectory.sample_her_states(self.env)
@@ -427,7 +439,7 @@ class ddpg_agent:
 
     # update the normalizer
     def _update_normalizer(self, episode_batch):
-        mb_obs, mb_g, mb_ag, obs_imgs, mb_actions = episode_batch
+        mb_obs, mb_g, mb_ag, obs_imgs, mb_actions, mb_events = episode_batch
         
         mb_obs_next = mb_obs[:, 1:, :]
         mb_ag_next = mb_ag[:, 1:, :]
@@ -511,6 +523,7 @@ class ddpg_agent:
     def _get_losses(self, task, transitions):
         if task == 'sym_state':
             transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor = self._prepare_inputs_for_state_only(transitions)
+            print(inputs_next_norm_tensor.size())
             with torch.no_grad():
                 actions_next = self.actor_target_network(inputs_next_norm_tensor)
                 q_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
@@ -548,16 +561,16 @@ class ddpg_agent:
         elif task == 'asym_goal_in_image':
             raise NotImplementedError
         elif task == 'sym_image':
-            tensor_img =  transitions['obs_imgs']
+            tensor_img =  transitions['obs_imgs_with_goals']
             tensor_img = torch.tensor(tensor_img.copy()).to(torch.float32)
             tensor_img = tensor_img.permute(0, 3, 1, 2)
 
-            tensor_img_next = transitions['next_obs_imgs']
+            tensor_img_next = transitions['obs_imgs_with_goals_next']
             tensor_img_next = torch.tensor(tensor_img_next.copy()).to(torch.float32)
             tensor_img_next = tensor_img_next.permute(0, 3, 1, 2)
 
             actions_tensor = torch.tensor(transitions['actions'], dtype=torch.float32)
-            r_tensor = torch.tensor(transitions['rewards'], dtype=torch.float32)
+            r_tensor = torch.tensor(transitions['r'], dtype=torch.float32)
 
             if self.args.cuda:
                 tensor_img_next = tensor_img_next.cuda(MPI.COMM_WORLD.Get_rank())
@@ -580,6 +593,7 @@ class ddpg_agent:
             critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actor_loss = -self.critic_network(tensor_img, actions_real).mean()
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
+            print(actor_loss.item())
             return actor_loss, critic_loss
 
     # update the network
