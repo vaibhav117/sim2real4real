@@ -176,7 +176,7 @@ def model_factory(task, env_params) -> [nn.Module, nn.Module]:
     elif task == "asym_goal_outside_image":
         return get_actor_critic_and_target_nets(asym_goal_outside_image, critic, env_params)
     elif task == "asym_goal_in_image":
-        return get_actor_critic_and_target_nets(asym_goal_in_image, critic, env_params)
+        return get_actor_critic_and_target_nets(sym_image, critic, env_params)
     elif task == "sym_image":
         return get_actor_critic_and_target_nets(sym_image, sym_image_critic, env_params)
 
@@ -194,6 +194,7 @@ class ddpg_agent:
         # self.viewer.cam.type = const.CAMERA_FIXED
         self.critic_loss = []
         self.actor_loss = []
+        self.mean_rewards = []
         self.viewer.cam.distance = 1.2
         self.viewer.cam.azimuth = 180
         self.viewer.cam.elevation = -25
@@ -305,7 +306,13 @@ class ddpg_agent:
             pi = self.actor_network(o_tensor, g_tensor)
             return pi
         elif task == "asym_goal_in_image":
-            raise NotImplementedError
+            obs_img = observation["observation_image"][np.newaxis, :].copy()
+            obs_img = torch.tensor(obs_img, dtype=torch.float32)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+            if self.args.cuda:
+                obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+            pi = self.actor_network(obs_img)
+            return pi
         elif task == "sym_image":
             obs_img = observation["observation_image"][np.newaxis, :].copy()
             obs_img = torch.tensor(obs_img, dtype=torch.float32)
@@ -401,6 +408,14 @@ class ddpg_agent:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
                 torch.save([self.o_norm.mean, self.o_norm.std, self.g_norm.mean, self.g_norm.std, self.actor_network.state_dict()], \
                             self.model_path + '/model.pt')
+                self.mean_rewards.append(success_rate)
+                plt.plot(self.mean_rewards, color="red", label="Rewards")
+                plt.xlabel('num steps')
+                plt.ylabel('success rate')
+                plt.legend()
+                plt.savefig('reward_plot.png')
+                plt.clf()
+
 
     # pre_process the inputs
     def _preproc_inputs(self, obs, g):
@@ -535,7 +550,6 @@ class ddpg_agent:
             real_q_value = self.critic_network(inputs_norm_tensor, actions_tensor)
             critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actions_real = self.actor_network(inputs_norm_tensor)
-            critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
             return actor_loss, critic_loss
@@ -554,12 +568,37 @@ class ddpg_agent:
             critic_loss = (target_q_value - real_q_value).pow(2).mean()
             tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_imgs'], transitions['goal_states'])
             actions_real = self.actor_network(tensor_img, tensor_g)
-            critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
             return actor_loss, critic_loss
         elif task == 'asym_goal_in_image':
-            raise NotImplementedError
+            tensor_img =  transitions['obs_imgs_with_goals']
+            tensor_img = torch.tensor(tensor_img.copy()).to(torch.float32)
+            tensor_img = tensor_img.permute(0, 3, 1, 2)
+
+            tensor_img_next = transitions['obs_imgs_with_goals_next']
+            tensor_img_next = torch.tensor(tensor_img_next.copy()).to(torch.float32)
+            tensor_img_next = tensor_img_next.permute(0, 3, 1, 2)
+
+            transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor = self._prepare_inputs_for_state_only(transitions)
+            if self.args.cuda:
+                tensor_img = tensor_img.cuda(MPI.COMM_WORLD.Get_rank())
+                tensor_img_next = tensor_img_next.cuda(MPI.COMM_WORLD.Get_rank())
+            
+            with torch.no_grad():
+                actions_next = self.actor_target_network(tensor_img_next)
+                q_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
+                q_next_value = q_next_value.detach()
+                target_q_value = r_tensor + self.args.gamma * q_next_value
+                target_q_value = target_q_value.detach()
+                clip_return = 1 / (1 - self.args.gamma)
+                target_q_value = torch.clamp(target_q_value, -clip_return, 0)
+            real_q_value = self.critic_network(inputs_norm_tensor, actions_tensor)
+            critic_loss = (target_q_value - real_q_value).pow(2).mean()
+            actions_real = self.actor_network(tensor_img)
+            actor_loss = -self.critic_network(inputs_norm_tensor, actions_real).mean()
+            actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
+            return actor_loss, critic_loss
         elif task == 'sym_image':
             tensor_img =  transitions['obs_imgs_with_goals']
             tensor_img = torch.tensor(tensor_img.copy()).to(torch.float32)
@@ -590,7 +629,6 @@ class ddpg_agent:
             real_q_value = self.critic_network(tensor_img, actions_tensor)
             critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actions_real = self.actor_network(tensor_img)
-            critic_loss = (target_q_value - real_q_value).pow(2).mean()
             actor_loss = -self.critic_network(tensor_img, actions_real).mean()
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
             # print(actor_loss.item())
@@ -599,7 +637,10 @@ class ddpg_agent:
     # update the network
     def _update_network(self):
         # sample the episodes
+        s = time.time()
         transitions = self.buffer.sample(self.args.batch_size)
+        e = time.time()
+        print(e - s)
         # calculate the target Q value function
         actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
         # start to update the network
@@ -613,7 +654,6 @@ class ddpg_agent:
         critic_loss.backward()
         sync_grads(self.critic_network)
         self.critic_optim.step()
-        print(actor_loss.item())
         if MPI.COMM_WORLD.Get_rank() == 0:
             self.critic_loss.append(critic_loss.item())
             self.actor_loss.append(actor_loss.item())
@@ -649,4 +689,6 @@ class ddpg_agent:
         plt.legend()
         plt.savefig('loss_plot.png')
         plt.clf()
+
+
         return global_success_rate / MPI.COMM_WORLD.Get_size()

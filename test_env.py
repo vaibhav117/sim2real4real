@@ -4,6 +4,7 @@ import cv2
 import numpy as np 
 from gym.envs.robotics import rotations, robot_env, utils
 
+from mujoco_py import MjRenderContextOffscreen
 env = gym.make('FetchReach-v1')
 
 
@@ -46,6 +47,27 @@ def reset_goal_fetch_reach(env, ach_goal):
     env.env.sim.forward()
     # env.env.sim.forward()
 
+def timeit(*args, **kwargs):
+    avg_time = 0
+    for i in range(kwargs["num_itrs"]):
+        t = time.time()
+        args(kwargs)
+        e = time.time()
+        avg_time = avg_time + (e - t)
+    # print(f"Time taken is {avg_time / kwargs["num_itrs"]} secs")
+
+# @timeit
+def benchmark_gpu_rendering(env):
+    # add rendering context
+    viewer = MjRenderContextOffscreen(env.env.sim, True, -1, "cuda")
+    viewer.cam.distance = 1.2
+    viewer.cam.azimuth = 180
+    viewer.cam.elevation = -25
+    env.env._viewers['rgb_array'] = viewer
+
+
+benchmark_gpu_rendering(env)
+
 states = []
 observation = env.reset()
 def goal_realign():
@@ -71,12 +93,29 @@ def goal_realign():
 
         env.render()
 
-observation = env.reset()
-print(observation["achieved_goal"])
-while True:
-    # observation = env.reset()
-    env.env._get_viewer("human").render()
-    env_setup(env.env, observation["desired_goal"])
-    env.env._get_viewer("human").render()
-    # print("hello")
+
+def plot_shit():
+    rews_sym_images = [0, 0, 0.1, 0, 0.1, 0.2, 0.1, 0.4, 0.1, 0.2, 0, 0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.5, 0.4, 0.1, 0.3]
+
+    rews_sym_states = [0, 0.5, 0.9, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    rews_asym_states_images = [0, 0.3, 0.7, 0.8, 0.8,0.8,0.8,0.8, 0.8, 0.82, 0.86, 0.9, 0.87, 0.89, 0.9, 0.9, 0.9, 0.8, 0.9,0.9, 0.9, 0.9, 0.95]
+    plt.plot(rews_sym_images, label="sym images", color="red")
+    plt.plot(rews_sym_states, label="sym states", color="blue")
+    plt.plot(rews_asym_states_images, label="asym images/states", color="green")
+    plt.plot()
+    plt.ylabel("rewards")
+    plt.ylabel("epochs")
+    plt.legend()
+    plt.title("Fetch Reach")
+    plt.show()
+
+# plot_shit()
+# observation = env.reset()
+# print(observation["achieved_goal"])
+# while True:
+#     # observation = env.reset()
+#     env.env._get_viewer("human").render()
+#     env_setup(env.env, observation["desired_goal"])
+#     env.env._get_viewer("human").render()
+#     # print("hello")
     

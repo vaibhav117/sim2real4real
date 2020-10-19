@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument('--sym-image', action='store_true', help='if use gpu do the acceleration')
     parser.add_argument('--image', action='store_true', help='if we want image based RL')
     parser.add_argument('--num-rollouts-per-mpi', type=int, default=2, help='the rollouts per mpi')
-    parser.add_argument('--task', type=str, default="sym_image", help='The task to train (sym/ asym) (image/state)')
+    parser.add_argument('--task', type=str, default="asym_goal_in_image", help='The task to train (sym/ asym) (image/state)')
 
     args = parser.parse_args()
 

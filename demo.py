@@ -1,5 +1,5 @@
 import torch
-from rl_modules.models import actor, new_actor
+from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
 from arguments import get_args
 import gym
 from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
@@ -39,7 +39,7 @@ def _preproc_inputs_image(obs_img, g, cuda):
 def _eval_agent(a_n, env, args, image_based=True, cuda=False):
 
         # load model
-        env = gym.make('FetchPush-v1')
+        env = gym.make('FetchReach-v1')
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
         # self.viewer.cam.fixedcamid = 3
@@ -50,7 +50,11 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
         env.env._viewers['rgb_array'] = viewer
 
         model_path = '../../test.pt'
-        loaded_model = new_actor(get_env_params(env))
+        if args.task == 'sym_image':
+            loaded_model = sym_image(get_env_params(env))
+        else:
+            loaded_model = new_actor(get_env_params(env))
+
         loaded_model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
 
         if cuda:
@@ -72,12 +76,15 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
                 cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
                 cv2.waitKey(0)
                 with torch.no_grad():
-                    if image_based:
-                        o_tensor, g_tensor = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
-                        pi = loaded_model(o_tensor, g_tensor)
+                    if args.task == 'sym_image':
+                        pi = loaded_model(o_tensor)
                     else:
-                        input_tensor = self._preproc_inputs(obs, g)
-                        pi = actor_network(input_tensor)
+                        if image_based:
+                            o_tensor, g_tensor = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
+                            pi = loaded_model(o_tensor, g_tensor)
+                        else:
+                            input_tensor = self._preproc_inputs(obs, g)
+                            pi = actor_network(input_tensor)
                     # convert the actions
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = env.step(actions)
@@ -138,7 +145,12 @@ if __name__ == '__main__':
         env.env._viewers['rgb_array'] = viewer
 
     # create the actor network
-    actor_network = new_actor(env_params)
+
+    if args.task == 'sym_image':
+            actor_network = sym_image(env_params)
+    else:
+        actor_network = new_actor(env_params)
+
     actor_network.load_state_dict(model)
     # actor_network.eval()
     # _eval_agent(actor_network, env, args)
@@ -151,7 +163,12 @@ if __name__ == '__main__':
         for t in range(env._max_episode_steps):
             #env.render()
 
-            if image_based:
+            if args.task == 'sym_image':
+                obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
+                np_obs_img = obs_img.copy()
+                obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
+                obs_img = obs_img.permute(0, 3, 1, 2)
+            elif image_based:
                 obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
                 np_obs_img = obs_img.copy()
                 #print(obs_img.shape)
@@ -166,7 +183,9 @@ if __name__ == '__main__':
             cv2.waitKey(0)
 
             with torch.no_grad():
-                if not image_based:
+                if args.task == 'sym_image':
+                    pi = actor_network(obs_img)
+                elif not image_based:
                     pi = actor_network(inputs)
                 else:
                     pi = actor_network(obs_img, g_norm)

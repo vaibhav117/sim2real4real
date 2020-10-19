@@ -56,7 +56,7 @@ class replay_buffer:
 
     # store the episode
     def store_trajectories(self, episode_batch):
-        obs_states, goal_states, ach_goal_states, obs_imgs, actions = episode_batch
+        obs_states, goal_states, ach_goal_states, obs_imgs, actions, _ = episode_batch
 
         batch_size = obs_states.shape[0] 
         with self.lock:
@@ -88,7 +88,7 @@ class replay_buffer:
         ach_goal_states = np.array(ach_goal_states)
         obs_imgs = np.array(obs_imgs)
         actions = np.array(actions)
-        return [obs_states, goal_states, ach_goal_states, obs_imgs, actions]
+        return [obs_states, goal_states, ach_goal_states, obs_imgs, actions, None]
     
     # sample the data from the replay buffer
     def sample(self, batch_size):

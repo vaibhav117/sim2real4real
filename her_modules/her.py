@@ -105,6 +105,8 @@ class her_sampler_new:
         # replace go with achieved goal
         future_ag = episode_batch['ach_goal_states'][episode_idxs[her_indexes], future_t]
 
+
+        # TODO: extrememly slow implementation, please fix
         if 'env_states' in episode_batch:
             states = list(map(lambda x: states_tracker['env_states'][x], her_indexes[0]))
             next_states = list(map(lambda x: states_tracker['env_states_next'][x], her_indexes[0]))
