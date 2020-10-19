@@ -118,4 +118,3 @@ def plot_shit():
 #     env_setup(env.env, observation["desired_goal"])
 #     env.env._get_viewer("human").render()
 #     # print("hello")
-    
