@@ -13,8 +13,8 @@
 module load mpi/openmpi-4.0
 #module load cuda-9.0
 nvidia-smi
-source activate rl
-pip install --upgrade --force-reinstall --no-cache-dir torch torchvision
+source activate dmc
+#pip install --upgrade --force-reinstall --no-cache-dir torch torchvision
 cd /home/ksc487/sim2real4real
-bash run.sh
+bash run2.sh
 

@@ -2,10 +2,10 @@ import numpy as np
 import gym
 import os, sys
 from arguments import get_args
-from mpi4py import MPI
 from rl_modules.ddpg_agent import ddpg_agent
 import random
 import torch
+from mpi4py import MPI
 
 """
 train the agent, the MPI part code is copy from openai baselines(https://github.com/openai/baselines/blob/master/baselines/her)

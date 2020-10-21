@@ -2,8 +2,6 @@ import torch
 import os
 from datetime import datetime
 import numpy as np
-from mpi4py import MPI
-from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.replay_buffer import replay_buffer, new_replay_buffer
 from rl_modules.image_only_replay_buffer import image_replay_buffer, state_replay_buffer
 from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
@@ -19,6 +17,8 @@ from rl_modules.utils import plot_grad_flow
 from torch import autograd
 import time
 import torch.nn as nn
+from mpi4py import MPI
+from mpi_utils.mpi_utils import sync_networks, sync_grads
 
 def show_video(img):
     cv2.imshow('frame', cv2.resize(img, (200,200)))
@@ -637,10 +637,10 @@ class ddpg_agent:
     # update the network
     def _update_network(self):
         # sample the episodes
-        s = time.time()
+        #s = time.time()
         transitions = self.buffer.sample(self.args.batch_size)
-        e = time.time()
-        print(e - s)
+        #e = time.time()
+        #print('Time for buffer {}'.format(e-s))
         # calculate the target Q value function
         actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
         # start to update the network
