@@ -359,7 +359,7 @@ class ddpg_agent:
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
                     # start to collect samples
-                    for t in range(self.env_params['max_timesteps']):
+                    for t in range(self.env_params['max_timesteps']): # 50
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
@@ -380,19 +380,7 @@ class ddpg_agent:
 
                     # save trajectory
                     trajectories.append(trajectory)
-                    
-                    # store images all all steps of trajectory with achieved goal in the image
-                    # if self.args.task == 'asym_goal_in_image' or self.args.task == 'sym_image':
-                    #     obs, next_obs, actions, rews = trajectory.sample_her_images(self.env)
-                    #     self.buffer.store_episode(obs, next_obs, actions, rews)
-                    
-                    # if self.args.task == 'sym_state':
-                    #     obs_states, next_obs_states, acts, rews, goals, next_goals = trajectory.sample_her_states(self.env)
-                    #     self.buffer.store_episode(obs_states, next_obs_states, acts, rews, goals, next_goals)
-
-
-                # TODO: Normalize stuff ? Is this needed ? It helps with purely state based training.
-
+                
                 self.normalize_states_and_store(trajectories, self.args.task)
 
                 for _ in range(self.args.n_batches):
@@ -400,8 +388,6 @@ class ddpg_agent:
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
-                # end_of_lel = time.time()
-                # print("Updating stuff {}".format(end_of_lel - start_of_lel))
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
