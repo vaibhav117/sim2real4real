@@ -17,14 +17,11 @@ from rl_modules.utils import plot_grad_flow
 from torch import autograd
 import time
 import torch.nn as nn
-<<<<<<< HEAD
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
-=======
 from rl_modules.utils import timeit
 from rl_modules.trajectory import Trajectory
 from rl_modules.base import Agent
->>>>>>> Saving model logic and timing benchmark
 
 
 from rl_modules.utils import Benchmark
@@ -545,22 +542,9 @@ class ddpg_agent(Agent):
             # print(actor_loss.item())
             return actor_loss, critic_loss
 
-<<<<<<< HEAD
-    # update the network
-    def _update_network(self):
-        # sample the episodes
-        #s = time.time()
-        transitions = self.buffer.sample(self.args.batch_size)
-        #e = time.time()
-        #print('Time for buffer {}'.format(e-s))
-        # calculate the target Q value function
-        actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
-        # start to update the network
-=======
 
     @benchmark
     def _gradient_step(self, actor_loss, critic_loss):
->>>>>>> Saving model logic and timing benchmark
         self.actor_optim.zero_grad()
         actor_loss.backward()
         # plot_grad_flow(self.actor_network.named_parameters())
