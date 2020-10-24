@@ -117,6 +117,7 @@ class ddpg_agent(Agent):
         # create the network
         self.actor_network, self.actor_target_network, self.critic_network, self.critic_target_network = model_factory(args.task, env_params)
 
+        
         # if use gpu
         if self.args.cuda:
             print("Using the GPU")
@@ -139,10 +140,26 @@ class ddpg_agent(Agent):
         if MPI.COMM_WORLD.Get_rank() == 0:
             if not os.path.exists(self.args.save_dir):
                 os.mkdir(self.args.save_dir)
+
+            self.task_path = os.path.join(self.args.save_dir, self.args.task)
+            if not os.path.exists(self.task_path):
+                os.mkdir(self.task_path)
             # path to save the model
-            self.model_path = os.path.join(self.args.save_dir, self.args.env_name)
+            self.model_path = os.path.join(self.task_path, self.args.env_name)
             if not os.path.exists(self.model_path):
                 os.mkdir(self.model_path)
+            
+    def save_models(self):
+        save_dict = {
+            'actor_net': self.actor_network.state_dict(),
+            'critic_net': self.actor_network.state_dict(),
+            'o_mean': self.o_norm.mean,
+            'o_std' : self.o_norm.std,
+            'g_mean': self.g_norm.mean,
+            'g_std': self.g_norm.std
+        }
+
+        torch.save(save_dict, self.model_path + '/model.pt')
 
     @benchmark
     def get_her_module(self, task):
@@ -307,8 +324,7 @@ class ddpg_agent(Agent):
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
-                torch.save([self.o_norm.mean, self.o_norm.std, self.g_norm.mean, self.g_norm.std, self.actor_network.state_dict()], \
-                            self.model_path + '/model.pt')
+                self.save_models()
                 self.mean_rewards.append(success_rate)
                 plt.plot(self.mean_rewards, color="red", label="Rewards")
                 plt.xlabel('num steps')
