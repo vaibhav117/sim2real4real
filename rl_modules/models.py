@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from featurizers.factory import get_encoder
+
 """
 the input x in both networks should be [o, g], where o is the observation and g is the goal.
 
 """
-
 # define the actor network
 class actor(nn.Module):
     def __init__(self, env_params):

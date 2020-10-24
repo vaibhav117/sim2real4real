@@ -17,120 +17,27 @@ from rl_modules.utils import plot_grad_flow
 from torch import autograd
 import time
 import torch.nn as nn
+<<<<<<< HEAD
 from mpi4py import MPI
 from mpi_utils.mpi_utils import sync_networks, sync_grads
+=======
+from rl_modules.utils import timeit
+from rl_modules.trajectory import Trajectory
+from rl_modules.base import Agent
+>>>>>>> Saving model logic and timing benchmark
 
+
+from rl_modules.utils import Benchmark
+
+benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
+
+
+@benchmark
 def show_video(img):
     cv2.imshow('frame', cv2.resize(img, (200,200)))
     cv2.waitKey(0)
 
-
-class Trajectory:
-
-    def __init__(self):
-        self.obs_states = []
-        self.goal_states = []
-        self.ach_goal_states = []
-        self.actions = []
-        self.obs_imgs = []
-        self.env_states = []
-        self.her_obs_imgs = []
-    
-    def add(self, observation):
-        self.obs_states.append(observation['observation'].copy())
-        self.goal_states.append(observation['desired_goal'].copy())
-        self.ach_goal_states.append(observation['achieved_goal'].copy())
-        if observation['action'] is not None: # we do not get last action in rollout
-            self.actions.append(observation['action'].copy())
-        self.obs_imgs.append(observation['observation_image'].copy())
-        self.env_states.append(observation['env_state'])
-
-    def get(self):
-        raise NotImplementedError
-    
-    def sample_her_images(self, env):
-        '''
-        Stateful function which computes the her sampled image observations
-
-        Return [image, action, next_image, reward]
-
-        80% of these tuples will have HER goals. 20% of these will have regular stuff
-        '''
-        her_p = 0.8 # with prob 80% sample golas with HER else just leave state as it is.
-        end_goal = self.ach_goal_states[-1]
-        obs = []
-        acts = []
-        next_obs = []
-        rews = []
-
-        T = len(self.actions)
-        for i in range(T):
-            s = self.env_states[i]
-            # acquired_goal = self.ach_goal_states[i]
-            if np.random.uniform(size=1) < her_p:
-                # do HER
-                env.sim.set_state(s)
-                reset_goal_fetch_reach(env, self.ach_goal_states[i+1])
-                curr_img = render_image_without_fuss(env)
-                env.sim.set_state(self.env_states[i+1])
-                reset_goal_fetch_reach(env, self.ach_goal_states[i+1])
-                next_img = render_image_without_fuss(env)
-                obs.append(curr_img)
-                next_obs.append(next_img)
-                rews.append(1)
-                acts.append(self.actions[i])
-                # show_video(curr_img)
-                # show_video(next_img)
-            else:
-                # add normal sample
-                obs.append(self.obs_imgs[i])
-                rews.append(env.compute_reward(self.goal_states[i], self.ach_goal_states[i+1], None))
-                next_obs.append(self.obs_imgs[i+1])
-                acts.append(self.actions[i])
-
-        return np.array(obs), np.array(next_obs), np.array(acts), np.array(rews)
-
-    def sample_her_states(self, env):
-        '''
-        Stateful function which computes the her sampled image observations
-
-        Return [image, action, next_image, reward]
-
-        80% of these tuples will have HER goals. 20% of these will have regular stuff
-        '''
-        her_p = 0 # with prob 80% sample golas with HER else just leave state as it is.
-        obs_states = []
-        acts = []
-        next_obs_states = []
-        rews = []
-        goals = []
-        next_goals = []
-
-        T = len(self.actions)
-        for i in range(T):
-            if np.random.uniform(size=1) < her_p:
-                # do HER
-                obs_states.append(self.obs_states[i])
-                goals.append(self.ach_goal_states[i+1]) # add HER magic
-                next_goals.append(self.goal_states[i+1]) # do we even need this ?
-                rews.append(env.compute_reward(self.ach_goal_states[i+1], self.ach_goal_states[i+1], None)) # compute reward at current state, action
-                rews.append(1)
-                next_obs_states.append(self.obs_states[i+1])
-                acts.append(self.actions[i])
-                # print(rews[-1])
-            else:
-                # add normal sample
-                obs_states.append(self.obs_states[i])
-                goals.append(self.goal_states[i])
-                next_goals.append(self.goal_states[i+1]) # do we even need this ?
-                rews.append(env.compute_reward(self.goal_states[i], self.ach_goal_states[i+1], None)) # state, action-> next goal. goal wanted: current goal
-                next_obs_states.append(self.obs_states[i+1])
-                acts.append(self.actions[i])
-                # print(rews[-1])
-
-        return np.array(obs_states), np.array(next_obs_states), np.array(acts), np.array(rews), np.array(goals), np.array(next_goals)
-
-
+@benchmark
 def reset_goal_fetch_reach(env, ach_goal):
     sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
     site_id = env.env.sim.model.site_name2id('target0')
@@ -138,13 +45,14 @@ def reset_goal_fetch_reach(env, ach_goal):
     env.env.sim.forward()
     return env
 
+@benchmark
 def render_image_without_fuss(env):
     env.env._get_viewer("rgb_array").render(100, 100)
     data = env.env._get_viewer("rgb_array").read_pixels(100, 100, depth=False)
     img = data[::-1, :, :]
     return img
 
-
+@benchmark
 def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
     """
     Creates actor, critic, target nets and syncs nets across CPUs
@@ -167,6 +75,7 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
 
     return actor_network, actor_target_network, critic_network, critic_target_network
 
+@benchmark
 def model_factory(task, env_params) -> [nn.Module, nn.Module]:
     """
     Returns actor critic for experiment setup
@@ -183,8 +92,10 @@ def model_factory(task, env_params) -> [nn.Module, nn.Module]:
 """
 ddpg with HER (MPI-version)
 """
-class ddpg_agent:
+class ddpg_agent(Agent):
     def __init__(self, args, env, env_params):
+
+        super().__init__()
         self.args = args
         self.env = env
         self.env_params = env_params
@@ -236,6 +147,7 @@ class ddpg_agent:
             if not os.path.exists(self.model_path):
                 os.mkdir(self.model_path)
 
+    @benchmark
     def get_her_module(self, task):
         if task == 'sym_state' or task == 'asym_goal_outside_image':
             return her_sampler(self.args.replay_strategy,
@@ -251,7 +163,7 @@ class ddpg_agent:
                                 self.image_based,
                                 self.sym_image)        
 
-
+    @benchmark
     def get_buffer(self, task):
         if task == 'sym_state':
             return replay_buffer(self.env_params, 
@@ -272,6 +184,7 @@ class ddpg_agent:
                     self.image_based,
                     self.sym_image)
 
+    @benchmark
     def get_obs(self, task, action=None, step=False):
         if step == False:
             obs = self.env.reset()
@@ -295,7 +208,7 @@ class ddpg_agent:
             return obs
 
     
-
+    @benchmark
     def get_policy(self, task, observation):
         if task == "sym_state":
             input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
@@ -322,9 +235,11 @@ class ddpg_agent:
             pi = self.actor_network(obs_img)
             return pi
     
+    @benchmark
     def record_trajectory(self, observation):
         raise NotImplementedError
-
+    
+    @benchmark
     def normalize_states_and_store(self, trajectories, task):
         if task == 'sym_state' or task == 'asym_goal_outside_image':
             # Implement: Temporary just to maintain API
@@ -336,6 +251,7 @@ class ddpg_agent:
             self.buffer.store_trajectories(episode_batch)
             self._update_normalizer(episode_batch)
     
+    @benchmark
     def learn(self):
         """
         train the network
@@ -385,6 +301,7 @@ class ddpg_agent:
 
                 for _ in range(self.args.n_batches):
                     self._update_network()
+                    benchmark.plot()
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
@@ -404,6 +321,7 @@ class ddpg_agent:
 
 
     # pre_process the inputs
+    @benchmark
     def _preproc_inputs(self, obs, g):
         obs_norm = self.o_norm.normalize(obs)
         g_norm = self.g_norm.normalize(g)
@@ -415,6 +333,7 @@ class ddpg_agent:
         return inputs
     
     # pre_process the inputs
+    @benchmark
     def _preproc_inputs_image(self, obs_img, g):
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
@@ -426,6 +345,7 @@ class ddpg_agent:
         return obs_img, g_norm
     
     # this function will choose action for the agent and do the exploration
+    @benchmark
     def _select_actions(self, pi):
         action = pi.cpu().numpy().squeeze()
         # add the gaussian
@@ -439,6 +359,7 @@ class ddpg_agent:
         return action
 
     # update the normalizer
+    @benchmark
     def _update_normalizer(self, episode_batch):
         mb_obs, mb_g, mb_ag, obs_imgs, mb_actions, mb_events = episode_batch
         
@@ -466,16 +387,19 @@ class ddpg_agent:
         self.o_norm.recompute_stats()
         self.g_norm.recompute_stats()
 
+    @benchmark
     def _preproc_og(self, o, g):
         o = np.clip(o, -self.args.clip_obs, self.args.clip_obs)
         g = np.clip(g, -self.args.clip_obs, self.args.clip_obs)
         return o, g
 
     # soft update
+    @benchmark
     def _soft_update_target_network(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - self.args.polyak) * param.data + self.args.polyak * target_param.data)
 
+    @benchmark
     def get_image_obs_input(self, obs_img, g, target=False):
         obs_img = torch.tensor(obs_img.copy()).to(torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
@@ -492,7 +416,7 @@ class ddpg_agent:
         inputs = torch.cat([feature_obs_img, g_norm], dim=1)
         return inputs
 
-
+    @benchmark
     def _prepare_inputs_for_state_only(self, transitions):
         o, o_next, g = transitions['obs_states'], transitions['obs_states_next'], transitions['goal_states']
 
@@ -521,6 +445,7 @@ class ddpg_agent:
         
         return transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor
 
+    @benchmark
     def _get_losses(self, task, transitions):
         if task == 'sym_state':
             transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor = self._prepare_inputs_for_state_only(transitions)
@@ -620,6 +545,7 @@ class ddpg_agent:
             # print(actor_loss.item())
             return actor_loss, critic_loss
 
+<<<<<<< HEAD
     # update the network
     def _update_network(self):
         # sample the episodes
@@ -630,6 +556,11 @@ class ddpg_agent:
         # calculate the target Q value function
         actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
         # start to update the network
+=======
+
+    @benchmark
+    def _gradient_step(self, actor_loss, critic_loss):
+>>>>>>> Saving model logic and timing benchmark
         self.actor_optim.zero_grad()
         actor_loss.backward()
         # plot_grad_flow(self.actor_network.named_parameters())
@@ -643,9 +574,22 @@ class ddpg_agent:
         if MPI.COMM_WORLD.Get_rank() == 0:
             self.critic_loss.append(critic_loss.item())
             self.actor_loss.append(actor_loss.item())
-            # print("Critic Loss {} | Actor Loss {}".format(critic_loss.item(), actor_loss.item()))
+    
+    @benchmark
+    def _get_batch_of_data(self):
+        return self.buffer.sample(self.args.batch_size)
+
+    # update the network
+    def _update_network(self):
+        # sample the episodes
+        transitions = self._get_batch_of_data()
+        # calculate the target Q value function
+        actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
+        # start to update the network
+        self._gradient_step(actor_loss, critic_loss)
 
     # do the evaluation
+    @benchmark
     def _eval_agent(self):
         total_success_rate = []
         for _ in range(self.args.n_test_rollouts):
@@ -675,6 +619,5 @@ class ddpg_agent:
         plt.legend()
         plt.savefig('loss_plot.png')
         plt.clf()
-
 
         return global_success_rate / MPI.COMM_WORLD.Get_size()

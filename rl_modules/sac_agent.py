@@ -27,8 +27,6 @@ class ddpg_agent:
         self.env_params = env_params
         sim = self.env.sim
         self.viewer = MjRenderContextOffscreen(sim)
-        # self.viewer.cam.fixedcamid = 3
-        # self.viewer.cam.type = const.CAMERA_FIXED
         self.critic_loss = []
         self.actor_loss = []
         self.viewer.cam.distance = 1.2
@@ -186,6 +184,19 @@ class ddpg_agent:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
                 torch.save([self.o_norm.mean, self.o_norm.std, self.g_norm.mean, self.g_norm.std, self.actor_network.state_dict()], \
                             self.model_path + '/model.pt')
+
+
+    def save_models(self):
+        save_dict = {
+            'actor_net': self.actor_network.state_dict(),
+            'critic_net': self.actor_network.state_dict(),
+            'o_mean': self.o_norm.mean,
+            'o_std' : self.o_norm.std,
+            'g_mean': self.g_norm.mean,
+            'g_std': self.g_norm.std
+        }
+
+        torch.save(save_dict, self.model_path + '/model.pt')
 
     # pre_process the inputs
     def _preproc_inputs(self, obs, g):
