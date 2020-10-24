@@ -26,7 +26,7 @@ class Benchmark:
             keys.append(k)
             freq.append(num_times)
 
-        print(keys)
+        #print(keys)
         fig, axs = plt.subplots(1,2)
 
         axs[0].plot(range(len(keys)), times)
@@ -36,7 +36,8 @@ class Benchmark:
         axs[1].set_xlabel("keys")
         axs[1].set_ylabel("freq of functions")
         plt.xticks(range(len(keys)), keys, rotation=90)
-        plt.show()
+        plt.savefig('speed_plot.png')
+        plt.clf()
     
     def __call__(self, fn):
         # *args and **kwargs are to support positional and named arguments of fn

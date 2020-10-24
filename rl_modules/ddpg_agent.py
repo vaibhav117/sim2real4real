@@ -298,7 +298,8 @@ class ddpg_agent(Agent):
 
                 for _ in range(self.args.n_batches):
                     self._update_network()
-                    benchmark.plot()
+                    #if MPI.COMM_WORLD.Get_rank() == 0:
+                    #    benchmark.plot()
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
