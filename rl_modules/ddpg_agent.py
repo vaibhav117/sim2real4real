@@ -57,7 +57,13 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
 
     actor_network = actor_fn(env_params)
     critic_network = critic_fn(env_params)
-
+    
+    if env_params["load_saved"] == True:
+        print("Loading the actor/critic model from {}".format(env_params["model_path"]))
+        obj = torch.load(env_params["model_path"])
+        actor_network.load_state_dict(obj["actor_net"])
+        critic_network.load_state_dict(obj["critic_net"])
+    
     # sync the networks across the cpus
     sync_networks(actor_network)
     sync_networks(critic_network)
@@ -107,7 +113,11 @@ class ddpg_agent(Agent):
         self.viewer.cam.azimuth = 180
         self.viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = self.viewer
-
+        
+        final_model_path = os.path.join(self.args.save_dir, self.args.task, self.args.env_name, "model.pt")
+        print("Model being saved at {}".format(final_model_path))
+        env_params["model_path"] = final_model_path # TODO: fix bad practice
+        env_params["load_saved"] = self.args.loadsaved
         self.env_params = env_params
 
         # TODO: remove
@@ -129,6 +139,8 @@ class ddpg_agent(Agent):
         # create the optimizer
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
         self.critic_optim = torch.optim.Adam(self.critic_network.parameters(), lr=self.args.lr_critic)
+        
+
         # her sampler
         self.her_module = self.get_her_module(args.task)
         # create the replay buffer
@@ -136,6 +148,17 @@ class ddpg_agent(Agent):
         # create the normalizer
         self.o_norm = normalizer(size=env_params['obs'], default_clip_range=self.args.clip_range)
         self.g_norm = normalizer(size=env_params['goal'], default_clip_range=self.args.clip_range)
+        
+        if self.args.loadsaved:
+            print("Loading optim state dict and means/std from {}".format(env_params["model_path"]))
+            obj = torch.load(env_params["model_path"])   
+            self.actor_optim.load_state_dict(obj["actor_optim"])
+            self.critic_optim.load_state_dict(obj["critic_optim"])
+            self.o_norm.mean = obj['o_mean']
+            self.o_norm.std = obj['o_std']
+            self.g_norm.mean = obj['g_mean']
+            self.g_norm.std = obj['g_std']        
+        
         # create the dict for store the model
         if MPI.COMM_WORLD.Get_rank() == 0:
             if not os.path.exists(self.args.save_dir):
@@ -152,11 +175,13 @@ class ddpg_agent(Agent):
     def save_models(self):
         save_dict = {
             'actor_net': self.actor_network.state_dict(),
-            'critic_net': self.actor_network.state_dict(),
+            'critic_net': self.critic_network.state_dict(),
             'o_mean': self.o_norm.mean,
             'o_std' : self.o_norm.std,
             'g_mean': self.g_norm.mean,
-            'g_std': self.g_norm.std
+            'g_std': self.g_norm.std,
+            'actor_optim': self.actor_optim.state_dict(),
+            'critic_optim': self.critic_optim.state_dict()
         }
 
         torch.save(save_dict, self.model_path + '/model.pt')
