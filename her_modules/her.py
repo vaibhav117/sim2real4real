@@ -1,8 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt 
 import cv2 
+import gym
 
 def reset_goal_fetch_reach(env, ach_goal):
+    sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
+    site_id = env.env.sim.model.site_name2id('target0')
+    env.env.sim.model.site_pos[site_id] = ach_goal - sites_offset[0]
+    env.env.sim.forward()
+    return env
+
+def reset_goal_fetch_push(env, ach_goal):
+    ach_goal = ach_goal - [0.02,0.02,0]
     sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
     site_id = env.env.sim.model.site_name2id('target0')
     env.env.sim.model.site_pos[site_id] = ach_goal - sites_offset[0]
@@ -16,9 +25,13 @@ def render_image_without_fuss(env):
     return img
 
 
-def get_img(env, s, ag):
+def get_img(env, s, ag, mode="push"):
     env.sim.set_state(s)
-    reset_goal_fetch_reach(env, ag)
+    if mode == 'reach':
+        reset_goal_fetch_reach(env, ag)
+    elif mode == 'push':
+        reset_goal_fetch_push(env, ag)
+
     curr_img = render_image_without_fuss(env)
     return curr_img
 
@@ -30,7 +43,7 @@ def show_video(img1, img2):
 
 
 class her_sampler:
-    def __init__(self, replay_strategy, replay_k, reward_func=None, image_based=False, sym_image=False):
+    def __init__(self, replay_strategy, replay_k, reward_func=None, image_based=False, sym_image=False, mode=None):
         self.replay_strategy = replay_strategy
         self.replay_k = replay_k
         self.image_based = image_based
@@ -40,6 +53,7 @@ class her_sampler:
         else:
             self.future_p = 0
         self.reward_func = reward_func
+        self.mode = mode
 
     def sample_her_transitions(self, episode_batch, batch_size_in_transitions):
         T = episode_batch['actions'].shape[1]
@@ -67,7 +81,7 @@ class her_sampler:
 
 
 class her_sampler_new:
-    def __init__(self, replay_strategy, replay_k, env, reward_func=None, image_based=False, sym_image=False):
+    def __init__(self, replay_strategy, replay_k, env, reward_func=None, image_based=False, sym_image=False, mode='reach'):
         self.replay_strategy = replay_strategy
         self.replay_k = replay_k
         self.image_based = image_based
@@ -78,6 +92,7 @@ class her_sampler_new:
         else:
             self.future_p = 0
         self.reward_func = reward_func
+        self.mode = mode
 
     def sample_her_transitions(self, episode_batch, batch_size_in_transitions):
         T = episode_batch['actions'].shape[1]
@@ -114,8 +129,8 @@ class her_sampler_new:
             img_obs_with_new_goal_curr = []
             img_obs_with_new_goal_next = []
             for s, n_s, ag, idx in zip(states, next_states, future_ag, her_indexes[0]):
-                img_obs_curr = get_img(self.env, s, ag)
-                img_obs_next = get_img(self.env, n_s, ag)
+                img_obs_curr = get_img(self.env, s, ag, self.mode)
+                img_obs_next = get_img(self.env, n_s, ag, self.mode)
                 # show_video(img_obs_curr, img_obs_next)
                 img_obs_with_new_goal_curr.append(img_obs_curr)
                 img_obs_with_new_goal_next.append(img_obs_next)

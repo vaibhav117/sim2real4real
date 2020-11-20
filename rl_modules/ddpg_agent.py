@@ -168,14 +168,16 @@ class ddpg_agent(Agent):
                                 self.args.replay_k, 
                                 self.env.compute_reward,
                                 self.image_based,
-                                self.sym_image)
+                                self.sym_image,
+                                self.args.mode)
         else:
             return her_sampler_new(self.args.replay_strategy,
                                 self.args.replay_k, 
                                 self.env,
                                 self.env.compute_reward,
                                 self.image_based,
-                                self.sym_image)        
+                                self.sym_image,
+                                self.args.mode)        
 
     @benchmark
     def get_buffer(self, task):
