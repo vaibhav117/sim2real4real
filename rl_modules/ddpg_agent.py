@@ -103,7 +103,7 @@ class ddpg_agent(Agent):
         self.env = env
         self.env_params = env_params
         sim = self.env.sim
-        self.viewer = MjRenderContextOffscreen(sim)
+        self.viewer = MjRenderContextOffscreen(sim, device_id=MPI.COMM_WORLD.Get_rank())
         # self.viewer.cam.fixedcamid = 3
         # self.viewer.cam.type = const.CAMERA_FIXED
         self.critic_loss = []
