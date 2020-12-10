@@ -21,7 +21,7 @@ def randomize_camera(viewer):
     viewer.cam.azimuth = random.randint(160,190)
     viewer.cam.elevation = random.randint(-45,-25)
 
-def randomize_textures(sim):
+def randomize_textures(sim, modder):
     for name in sim.model.geom_names:
         modder.rand_all(name)
 

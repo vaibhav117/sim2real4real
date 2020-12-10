@@ -132,6 +132,9 @@ class her_sampler_new:
                 img_obs_curr = get_img(self.env, s, ag, self.mode)
                 img_obs_next = get_img(self.env, n_s, ag, self.mode)
                 # show_video(img_obs_curr, img_obs_next)
+                # plt.imshow(img_obs_curr)
+                # plt.show()
+
                 img_obs_with_new_goal_curr.append(img_obs_curr)
                 img_obs_with_new_goal_next.append(img_obs_next)
             img_obs_with_new_goal_curr = np.array(img_obs_with_new_goal_curr)

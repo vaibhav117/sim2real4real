@@ -7,6 +7,7 @@ from rl_modules.image_only_replay_buffer import image_replay_buffer, state_repla
 from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler, her_sampler_new
+from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
 import cv2
 import itertools
 import matplotlib.pyplot as plt
@@ -22,17 +23,27 @@ from mpi_utils.mpi_utils import sync_networks, sync_grads
 from rl_modules.utils import timeit
 from rl_modules.trajectory import Trajectory
 from rl_modules.base import Agent
-
+import random
 
 from rl_modules.utils import Benchmark
 
 benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
 
 
+def randomize_camera(viewer):
+    viewer.cam.distance = random.randrange(1,3)
+    viewer.cam.azimuth = random.randint(160,190)
+    viewer.cam.elevation = random.randint(-45,-25)
+
+
+def randomize_textures(modder, sim):
+    for name in sim.model.geom_names:
+        modder.rand_all(name)
+
 @benchmark
 def show_video(img):
     cv2.imshow('frame', cv2.resize(img, (200,200)))
-    cv2.waitKey(0)
+    cv2.waitKey()
 
 @benchmark
 def reset_goal_fetch_reach(env, ach_goal):
@@ -109,9 +120,9 @@ class ddpg_agent(Agent):
         self.critic_loss = []
         self.actor_loss = []
         self.mean_rewards = []
-        self.viewer.cam.distance = 1.2
-        self.viewer.cam.azimuth = 180
-        self.viewer.cam.elevation = -25
+        self.viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
+        self.viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
+        self.viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
         env.env._viewers['rgb_array'] = self.viewer
         
         final_model_path = os.path.join(self.args.save_dir, self.args.task, self.args.env_name, "model.pt")
@@ -171,6 +182,9 @@ class ddpg_agent(Agent):
             self.model_path = os.path.join(self.task_path, self.args.env_name)
             if not os.path.exists(self.model_path):
                 os.mkdir(self.model_path)
+        
+        if self.args.randomize:
+            self.modder = TextureModder(self.env.sim)
             
     def save_models(self):
         save_dict = {
@@ -316,6 +330,13 @@ class ddpg_agent(Agent):
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
                     # start to collect samples
+
+                    if self.args.randomize:
+                        # randomize viewer params for current episode
+                        randomize_camera(self.viewer)
+                        randomize_textures(self.modder, self.env.sim)
+
+
                     for t in range(self.env_params['max_timesteps']): # 50
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
