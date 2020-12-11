@@ -293,7 +293,7 @@ class ddpg_agent(Agent):
             input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
             pi = self.actor_network(input_tensor)
             return pi
-        elif task == "asym_goal_outside_image" or task == "asym_goal_outside_image_distill":
+        elif task == "asym_goal_outside_image":
             o_tensor, g_tensor = self._preproc_inputs_image(observation["observation_image"][np.newaxis, :].copy(), observation["desired_goal"][np.newaxis, :].copy())
             pi = self.actor_network(o_tensor, g_tensor)
             return pi
@@ -312,6 +312,10 @@ class ddpg_agent(Agent):
             if self.args.cuda:
                 obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             pi = self.actor_network(obs_img)
+            return pi
+        elif task == "asym_goal_outside_image_distill"::
+            input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
+            pi = self.teacher_actor_network(input_tensor)
             return pi
     
     @benchmark
@@ -689,7 +693,10 @@ class ddpg_agent(Agent):
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
                 with torch.no_grad():
-                    pi = self.get_policy(self.args.task, observation)
+                    if self.args.task != "asym_goal_outside_image_distill":
+                        pi = self.get_policy(self.args.task, observation)
+                    else:
+                        pi = self.get_policy("asym_goal_outside_image" observation)
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)
                 obs_img = self.env.render(mode="rgb_array", height=100, width=100)
