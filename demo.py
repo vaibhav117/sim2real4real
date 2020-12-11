@@ -5,14 +5,14 @@ import gym
 from mujoco_py import load_model_from_path, MjSim, MjViewer, MjRenderContextOffscreen
 import numpy as np
 from mujoco_py.generated import const
-
-
+from rl_modules.ddpg_agent import randomize_textures
+from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
+from rl_modules.ddpg_agent import model_factory
 import cv2
 import numpy as np
 
 
 video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
-
 
 
 def get_env_params(env):
@@ -36,10 +36,10 @@ def _preproc_inputs_image(obs_img, g, cuda):
         g_norm = g_norm.cuda()
     return obs_img, g_norm
 
-def _eval_agent(a_n, env, args, image_based=True, cuda=False):
+def _eval_agent(args, paths, image_based=True, cuda=False):
 
         # load model
-        env = gym.make('FetchReach-v1')
+        env = gym.make(args.env_name)
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
         # self.viewer.cam.fixedcamid = 3
@@ -49,19 +49,36 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
         viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = viewer
 
-        model_path = '../../test.pt'
-        if args.task == 'sym_image':
-            loaded_model = sym_image(get_env_params(env))
-        else:
-            loaded_model = new_actor(get_env_params(env))
+        # model_path = '../../test.pt'
+        # model_path = './server_weights/asym_goal_in_image/FetchPush-v1/model.pt'
+        # model_path = './weird_weights/FetchSlide-v1/model.pt'
+        # model_path = './randomized_server_weights/FetchReach-v1/model.pt'
+        # model_path = args.save_dir + args.env_name + '/model.pt'
 
-        loaded_model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
+
+        # env params
+        env_params = get_env_params(env)
+        env_params["model_path"] = paths[args.env_name][args.task] # TODO: fix bad practice
+        env_params["load_saved"] = args.loadsaved
+
+        loaded_model, _, _, _ = model_factory(args.task, env_params)
+
+        # if args.task == 'sym_image':
+        #     loaded_model = sym_image(get_env_params(env))
+        # else:
+        #     loaded_model = asym_goal_outside_image(get_env_params(env))
+        model_path = paths[args.env_name][args.task] + '/model.pt'
+        obj = torch.load(model_path, map_location=lambda storage, loc: storage)
+        loaded_model.load_state_dict(obj['actor_net'])
+
+        # loaded_model.load_state_dict(obj[4])
 
         if cuda:
             loaded_model.cuda()
 
         total_success_rate = []
         rollouts = []
+
         for _ in range(args.n_test_rollouts):
             per_success_rate = []
             observation = env.reset()
@@ -69,6 +86,8 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
             g = observation['desired_goal']
             rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
+            modder = TextureModder(env.sim)
+            # randomize_textures(modder, env.sim)
             for _ in range(env._max_episode_steps):
                 # env.render()
                 rollout.append(obs_img)
@@ -77,6 +96,7 @@ def _eval_agent(a_n, env, args, image_based=True, cuda=False):
                 cv2.waitKey(0)
                 with torch.no_grad():
                     if args.task == 'sym_image':
+                        o_tensor, _ = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
                         pi = loaded_model(o_tensor)
                     else:
                         if image_based:
@@ -116,81 +136,25 @@ def process_inputs(o, g, o_mean, o_std, g_mean, g_std, args):
 
 
 if __name__ == '__main__':
-    image_based = True
+    paths = {
+        'FetchReach-v1': {
+            'sym_state': './weights/saved_models/FetchReach-v1/',
+            'asym_goal_outside_image': './randomized_server_weights/asym_goal_outside_image/FetchReach-v1/',
+            'asym_goal_in_image': '',
+            'sym_image': ''
+        },
+        'FetchPush-v1': {
+
+        },
+        'FetchSlide-v1': {
+
+        },
+        'FetchPickAndPlace-v1': {
+
+        }
+    }
     args = get_args()
-    # load the model param
-    model_path = args.save_dir + args.env_name + '/model.pt'
-    # model_path = '../../test.pt'
-    o_mean, o_std, g_mean, g_std, model = torch.load(model_path, map_location=lambda storage, loc: storage)
-    # create the environment
-    env = gym.make(args.env_name)
-    # get the env param
-    observation = env.reset()
-    # get the environment params
-    env_params = {'obs': observation['observation'].shape[0], 
-                  'goal': observation['desired_goal'].shape[0], 
-                  'action': env.action_space.shape[0], 
-                  'action_max': env.action_space.high[0],
-                  }
-
-    if image_based:
-        # env = gym.make('FetchPush-v1')
-        sim = env.sim
-        viewer = MjRenderContextOffscreen(sim)
-        # self.viewer.cam.fixedcamid = 3
-        # self.viewer.cam.type = const.CAMERA_FIXED
-        viewer.cam.distance = 1.2
-        viewer.cam.azimuth = 180
-        viewer.cam.elevation = -25
-        env.env._viewers['rgb_array'] = viewer
-
-    # create the actor network
-
-    if args.task == 'sym_image':
-            actor_network = sym_image(env_params)
-    else:
-        actor_network = new_actor(env_params)
-
-    actor_network.load_state_dict(model)
-    # actor_network.eval()
-    # _eval_agent(actor_network, env, args)
-    # exit()
-    for i in range(args.demo_length):
-        observation = env.reset()
-        # start to do the demo
-        obs = observation['observation']
-        g = observation['desired_goal']
-        for t in range(env._max_episode_steps):
-            #env.render()
-
-            if args.task == 'sym_image':
-                obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
-                np_obs_img = obs_img.copy()
-                obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
-                obs_img = obs_img.permute(0, 3, 1, 2)
-            elif image_based:
-                obs_img = env.render(mode="rgb_array", height=100, width=100).copy()
-                np_obs_img = obs_img.copy()
-                #print(obs_img.shape)
-                obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
-                obs_img = obs_img.permute(0, 3, 1, 2)
-                # g_norm = torch.tensor(g, dtype=torch.float32).unsqueeze(0)
-                g_clip = np.clip(g, -args.clip_obs, args.clip_obs)
-                g_norm = torch.tensor(np.clip((g_clip - g_mean) / (g_std), -args.clip_range, args.clip_range),  dtype=torch.float32).unsqueeze(0)
-            else:
-                inputs = process_inputs(obs, g, o_mean, o_std, g_mean, g_std, args)
-            cv2.imshow('frame', cv2.resize(np_obs_img, (200,200)))
-            cv2.waitKey(0)
-
-            with torch.no_grad():
-                if args.task == 'sym_image':
-                    pi = actor_network(obs_img)
-                elif not image_based:
-                    pi = actor_network(inputs)
-                else:
-                    pi = actor_network(obs_img, g_norm)
-            action = pi.detach().numpy().squeeze()
-            # put actions into the environment
-            observation_new, reward, _, info = env.step(action)
-            obs = observation_new['observation']
-        print('the episode is: {}, is success: {}'.format(i, info['is_success']))
+    args.env_name = 'FetchReach-v1'
+    args.task = 'asym_goal_outside_image'
+    _eval_agent(args, paths)
+  
