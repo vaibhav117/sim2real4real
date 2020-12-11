@@ -29,6 +29,12 @@ from rl_modules.utils import Benchmark
 
 benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
 
+def load_backbone_weights_and_freeze(network, weights_path):
+    '''
+    '''
+    obj = torch.load(weights_path)
+    actor_state_dict = network['actor_net']
+    keys_to_remove = ['']
 
 def randomize_camera(viewer):
     viewer.cam.distance = random.randrange(1,3)
@@ -138,6 +144,14 @@ class ddpg_agent(Agent):
         # create the network
         self.actor_network, self.actor_target_network, self.critic_network, self.critic_target_network = model_factory(args.task, env_params)
 
+        if args.task == 'asym_goal_outside_image_distill':
+            # get state based nets and load the weights
+            self.teacher_actor_network, _, self.teacher_critic_network, _ = model_factory('sym_state', env_params)
+            model_path = 'saved_models/sym_state/' + args.env_name + '/model.pt'
+            obj = torch.load(model_path)
+            self.teacher_actor_network.load_state_dict(obj["actor_net"])
+            self.teacher_critic_network.load_state_dict(obj["critic_net"])
+            print(f"Loaded the teacher networks, distillation init..")
         
         # if use gpu
         if self.args.cuda:
@@ -185,6 +199,8 @@ class ddpg_agent(Agent):
         
         if self.args.randomize:
             self.modder = TextureModder(self.env.sim)
+        
+        # self._eval_agent()
             
     def save_models(self):
         save_dict = {
@@ -202,7 +218,7 @@ class ddpg_agent(Agent):
 
     @benchmark
     def get_her_module(self, task):
-        if task == 'sym_state' or task == 'asym_goal_outside_image':
+        if task == 'sym_state' or task == 'asym_goal_outside_image' or task == 'asym_goal_outside_image_distill':
             return her_sampler(self.args.replay_strategy,
                                 self.args.replay_k, 
                                 self.env.compute_reward,
@@ -226,7 +242,7 @@ class ddpg_agent(Agent):
                     self.her_module.sample_her_transitions,
                     self.image_based,
                     self.sym_image)
-        elif task == 'asym_goal_outside_image':
+        elif task == 'asym_goal_outside_image' or task == 'asym_goal_outside_image_distill':
             return replay_buffer(self.env_params, 
                     self.args.buffer_size, 
                     self.her_module.sample_her_transitions,
@@ -249,7 +265,7 @@ class ddpg_agent(Agent):
             obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
-        elif task == "asym_goal_outside_image":
+        elif task == "asym_goal_outside_image" or task == "asym_goal_outside_image_distill":
             obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
@@ -269,7 +285,7 @@ class ddpg_agent(Agent):
             input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
             pi = self.actor_network(input_tensor)
             return pi
-        elif task == "asym_goal_outside_image":
+        elif task == "asym_goal_outside_image" or task == "asym_goal_outside_image_distill":
             o_tensor, g_tensor = self._preproc_inputs_image(observation["observation_image"][np.newaxis, :].copy(), observation["desired_goal"][np.newaxis, :].copy())
             pi = self.actor_network(o_tensor, g_tensor)
             return pi
@@ -296,7 +312,7 @@ class ddpg_agent(Agent):
     
     @benchmark
     def normalize_states_and_store(self, trajectories, task):
-        if task == 'sym_state' or task == 'asym_goal_outside_image':
+        if task == 'sym_state' or task == 'asym_goal_outside_image' or task == "asym_goal_outside_image_distill":
             # Implement: Temporary just to maintain API
             episode_batch = self.buffer.create_batch(trajectories)
             self.buffer.store_trajectories(episode_batch)
@@ -333,11 +349,12 @@ class ddpg_agent(Agent):
 
                     if self.args.randomize:
                         # randomize viewer params for current episode
-                        randomize_camera(self.viewer)
+                        # randomize_camera(self.viewer)
                         randomize_textures(self.modder, self.env.sim)
 
 
                     for t in range(self.env_params['max_timesteps']): # 50
+                        # show_video(observation['observation_image'])
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
@@ -606,6 +623,20 @@ class ddpg_agent(Agent):
             actor_loss += self.args.action_l2 * (actions_real / self.env_params['action_max']).pow(2).mean()
             # print(actor_loss.item())
             return actor_loss, critic_loss
+        elif task == 'asym_goal_outside_image_distill':
+            transitions, inputs_norm_tensor, inputs_next_norm_tensor, actions_tensor, r_tensor = self._prepare_inputs_for_state_only(transitions)
+            tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_imgs_next'], transitions['goal_states_next'])
+            with torch.no_grad():
+                actions_teacher_real = self.teacher_actor_network(inputs_norm_tensor)
+                target_q_value = self.teacher_critic_network(inputs_norm_tensor, actions_tensor)
+            real_q_value = self.critic_network(inputs_norm_tensor, actions_tensor)
+            critic_loss = (target_q_value - real_q_value).pow(2).mean()
+            tensor_img, tensor_g = self._preproc_inputs_image(transitions['obs_imgs'], transitions['goal_states'])
+            actions_real = self.actor_network(tensor_img, tensor_g)
+
+            actor_loss = torch.nn.functional.mse_loss(actions_real, actions_teacher_real)
+
+            return actor_loss, critic_loss
 
 
     @benchmark
@@ -649,6 +680,7 @@ class ddpg_agent(Agent):
             obs_img = self.env.render(mode="rgb_array", height=100, width=100)
             observation['observation_image'] = obs_img
             for _ in range(self.env_params['max_timesteps']):
+                # show_video(observation['observation_image'])
                 with torch.no_grad():
                     pi = self.get_policy(self.args.task, observation)
                     actions = pi.detach().cpu().numpy().squeeze()
