@@ -333,7 +333,7 @@ class ddpg_agent(Agent):
 
                     if self.args.randomize:
                         # randomize viewer params for current episode
-                        randomize_camera(self.viewer)
+                        #randomize_camera(self.viewer)
                         randomize_textures(self.modder, self.env.sim)
 
 
