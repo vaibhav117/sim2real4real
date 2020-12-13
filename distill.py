@@ -31,6 +31,67 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+
+"""
+the replay buffer here is basically from the openai baselines code
+
+"""
+class replay_buffer:
+    def __init__(self, env_params, buffer_size):
+        self.env_params = env_params
+        self.T = env_params['max_timesteps']
+        self.size = int(buffer_size)
+
+
+        # memory management
+        self.current_size = 0
+        self.n_transitions_stored = 0
+        # create the buffer to store info
+        self.buffers = {'obs_states': np.empty([self.size, self.env_params['obs']]),
+                        'obs_img': np.empty([self.size, 100, 100, 3], dtype=np.uint8),
+                        'g_states': np.empty([self.size, self.env_params['goal']]),
+                        }
+    
+    # store the episode
+    def store_episode(self, observation):
+        obs_state, obs_img, goal = observation["observation"], observation["observation_image"], observation["desired_goal"]
+     
+        batch_size = 1
+
+        idxs = self._get_storage_idx(inc=batch_size)
+        # store the informations
+        self.buffers['obs_img'][idxs] = obs_img
+        self.buffers['g_states'][idxs] = goal
+        self.buffers['obs_states'][idxs] = obs_state
+        self.n_transitions_stored += self.T * batch_size
+    
+    # sample the data from the replay buffer
+    def sample(self, batch_size):
+        temp_buffers = {}
+        for key in self.buffers.keys():
+            temp_buffers[key] = self.buffers[key][:self.current_size]
+        random_idxs = np.random.choice(self.current_size, batch_size, replace=False)
+
+        return temp_buffers["obs_states"][random_idxs], temp_buffers["g_states"][random_idxs], temp_buffers["obs_img"][random_idxs]
+
+    def _get_storage_idx(self, inc=None):
+        inc = inc or 1
+        if self.current_size+inc <= self.size:
+            idx = np.arange(self.current_size, self.current_size+inc)
+        elif self.current_size < self.size:
+            overflow = inc - (self.size - self.current_size)
+            idx_a = np.arange(self.current_size, self.size)
+            idx_b = np.random.randint(0, self.current_size, overflow)
+            idx = np.concatenate([idx_a, idx_b])
+        else:
+            idx = np.random.randint(0, self.size, inc)
+        self.current_size = min(self.size, self.current_size+inc)
+        if inc == 1:
+            idx = idx[0]
+        return idx
+
+
+
 def show_video(img):
     cv2.imshow('frame', cv2.resize(img, (200,200)))
     cv2.waitKey()
@@ -66,7 +127,7 @@ def eval_agent(env, net, args):
         observation = env.reset()
         for _ in range(50):
             obs_img = env.render(mode="rgb_array", height=100, width=100)
-            show_video(obs_img)
+            #show_video(obs_img)
             obs_img = obs_img[np.newaxis, :].copy()
             obs_img = torch.tensor(obs_img, dtype=torch.float32)
             obs_img = obs_img.permute(0, 3, 1, 2)
@@ -100,7 +161,7 @@ def load_teacher_student(args):
     env_params["load_saved"] = False
 
     # load teacher
-    # teacher_path = 'saved_model/sym_state/FetchPush-v1/model.pt'
+    # teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
     teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
     obj = torch.load(teacher_path, map_location=lambda storage, loc: storage)
 
@@ -118,7 +179,6 @@ def load_teacher_student(args):
     student_optim = torch.optim.Adam(student_network.parameters(), lr=args.lr_actor)
 
     def _preproc_inputs_image(obs_img):
-        obs_img = obs_img[np.newaxis, :].copy()
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
         
@@ -130,14 +190,16 @@ def load_teacher_student(args):
         obs_norm = np.clip((obs - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range)
         g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
         # concatenate the stuffs
-        inputs = np.concatenate([obs_norm, g_norm])
-        inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0)
+        inputs = np.concatenate([obs_norm, g_norm], axis=1)
+        inputs = torch.tensor(inputs, dtype=torch.float32)
         if args.cuda:
             inputs = inputs.cuda()
         return inputs
 
     steps = 0
     episodes = 0
+    buffer = replay_buffer(env_params, 1e5)
+    batch_size = 512
     while True:
         observation = env.reset()
         observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
@@ -145,10 +207,10 @@ def load_teacher_student(args):
         for i in range(50):
             with torch.no_grad():
                 # teacher 
-                teacher_input_tensor = _preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
+                teacher_input_tensor = _preproc_inputs(observation["observation"].copy()[np.newaxis, :], observation["desired_goal"].copy()[np.newaxis, :])
                 pi_teacher = teacher_network(teacher_input_tensor)
 
-            student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy())
+            student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy()[np.newaxis, :])
             pi_student = student_network(student_input_tensor)
 
 
@@ -160,19 +222,43 @@ def load_teacher_student(args):
             observation, _, _, info = env.step(action)
             observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
 
-            # minimize loss
-            student_loss = F.mse_loss(pi_student, pi_teacher)
+            # store data in the buffer
+            buffer.store_episode(observation)
 
-            # step function
-            student_optim.zero_grad()
-            student_loss.backward()
-            student_optim.step()
+            # update function
+            if steps > batch_size:
+                obs_state, des_goal, obs_img = buffer.sample(batch_size)
+                with torch.no_grad():
+                    teacher_input_tensor = _preproc_inputs(obs_state, des_goal)
+                    pi_teacher = teacher_network(teacher_input_tensor)
+                student_input_tensor = _preproc_inputs_image(obs_img)
+                pi_student = student_network(student_input_tensor)
+                
+                # minimize loss
+                student_loss = F.mse_loss(pi_student, pi_teacher)
+
+                # step function
+                student_optim.zero_grad()
+                student_loss.backward()
+                student_optim.step()
             
             steps += 1
 
         
         if episodes % 100 == 0:
             succ_rate = eval_agent(env, student_network, args)
+            # save latest model
+            # saving
+            save_path = "saved_models/distill/image_only/"
+
+            os.makedirs(save_path)
+
+            torch.save({
+                "actor_net": student_network.state_dict(),
+                "meta_data": "image only, no normalization needed"
+            }, save_path + "model.pt")
+
+
             print(f"Succ rate is {succ_rate}")
 
         episodes += 1
