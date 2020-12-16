@@ -318,13 +318,14 @@ def init_process(rank, size, fn, my_args, backend='mpi'):
 
 if __name__ == "__main__":
     my_args = get_args()
-    processes = []
-    set_start_method('spawn')
-    for rank in range(my_args.num_workers):
-        p = Process(target=init_process, args=(rank, my_args.num_workers, load_teacher_student, my_args))
-        p.start()
-        processes.append(p)
+    # processes = []
+    # set_start_method('spawn')
+    # for rank in range(my_args.num_workers):
+    #     p = Process(target=init_process, args=(rank, my_args.num_workers, load_teacher_student, my_args))
+    #     p.start()
+    #     processes.append(p)
 
-    for p in processes:
-        p.join()
+    # for p in processes:
+    #     p.join()
+    init_process(0, 0, load_teacher_student, my_args, backend='mpi')
 
