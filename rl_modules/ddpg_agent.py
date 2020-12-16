@@ -146,7 +146,9 @@ class ddpg_agent(Agent):
 
         if args.task == 'asym_goal_outside_image_distill':
             # get state based nets and load the weights
+            env_params["load_saved"] = False
             self.teacher_actor_network, _, self.teacher_critic_network, _ = model_factory('sym_state', env_params)
+            env_params["load_saved"] = self.args.loadsaved
             model_path = 'saved_models/sym_state/' + args.env_name + '/model.pt'
             obj = torch.load(model_path)
             self.teacher_actor_network.load_state_dict(obj["actor_net"])
@@ -288,7 +290,7 @@ class ddpg_agent(Agent):
 
     
     @benchmark
-    def get_policy(self, task, observation):
+    def get_policy(self, task, observation, randomed=True):
         if task == "sym_state":
             input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
             pi = self.actor_network(input_tensor)
@@ -313,10 +315,20 @@ class ddpg_agent(Agent):
                 obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             pi = self.actor_network(obs_img)
             return pi
-        elif task == "asym_goal_outside_image_distill"::
-            input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
-            pi = self.teacher_actor_network(input_tensor)
-            return pi
+        elif task == "asym_goal_outside_image_distill":
+            if not randomed:
+                input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
+                pi = self.teacher_actor_network(input_tensor)
+                return pi
+            else:
+                if random.uniform(0,1) > 0.4: # use actor network, else use teacher network
+                    o_tensor, g_tensor = self._preproc_inputs_image(observation["observation_image"][np.newaxis, :].copy(), observation["desired_goal"][np.newaxis, :].copy())
+                    pi = self.actor_network(o_tensor, g_tensor)
+                    return pi
+                else:
+                    input_tensor = self._preproc_inputs(observation["observation"].copy(), observation["desired_goal"].copy())
+                    pi = self.teacher_actor_network(input_tensor)
+                    return pi
     
     @benchmark
     def record_trajectory(self, observation):
@@ -696,7 +708,7 @@ class ddpg_agent(Agent):
                     if self.args.task != "asym_goal_outside_image_distill":
                         pi = self.get_policy(self.args.task, observation)
                     else:
-                        pi = self.get_policy("asym_goal_outside_image" observation)
+                        pi = self.get_policy("asym_goal_outside_image", observation)
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)
                 obs_img = self.env.render(mode="rgb_array", height=100, width=100)

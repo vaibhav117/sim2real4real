@@ -161,8 +161,8 @@ def load_teacher_student(args):
     env_params["load_saved"] = False
 
     # load teacher
-    # teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
-    teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
+    teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
+    #teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
     obj = torch.load(teacher_path, map_location=lambda storage, loc: storage)
 
     # init teacher
@@ -245,13 +245,15 @@ def load_teacher_student(args):
             steps += 1
 
         
-        if episodes % 100 == 0:
+        if episodes % 20 == 0:
             succ_rate = eval_agent(env, student_network, args)
             # save latest model
             # saving
             save_path = "saved_models/distill/image_only/"
-
-            os.makedirs(save_path)
+            try:
+                os.makedirs(save_path)
+            except:
+                pass
 
             torch.save({
                 "actor_net": student_network.state_dict(),

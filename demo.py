@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 
 
-video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
+#video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
 
 
 def get_env_params(env):
@@ -78,7 +78,7 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
 
         total_success_rate = []
         rollouts = []
-
+        print("loaded")
         for _ in range(args.n_test_rollouts):
             per_success_rate = []
             observation = env.reset()
@@ -91,9 +91,9 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
             for _ in range(env._max_episode_steps):
                 # env.render()
                 rollout.append(obs_img)
-                video.write(obs_img)
-                cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
-                cv2.waitKey(0)
+                #video.write(obs_img)
+                #cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
+                #cv2.waitKey(0)
                 with torch.no_grad():
                     if args.task == 'sym_image':
                         o_tensor, _ = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
@@ -114,8 +114,8 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
                 per_success_rate.append(info['is_success'])
             total_success_rate.append(per_success_rate)
             rollouts.append(rollout)
-        cv2.destroyAllWindows()
-        video.release()
+        #cv2.destroyAllWindows()
+        #video.release()
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         print(local_success_rate)
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     paths = {
         'FetchReach-v1': {
             'sym_state': './weights/saved_models/FetchReach-v1/',
-            'asym_goal_outside_image': './randomized_server_weights/asym_goal_outside_image/FetchReach-v1/',
+            'asym_goal_outside_image': './saved_model/asym_goal_outside_image/FetchReach-v1/',
             'asym_goal_in_image': '',
             'sym_image': ''
         },
