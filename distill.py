@@ -30,7 +30,21 @@ from rl_modules.utils import Benchmark
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.distributed as dist
+from torch.multiprocessing import Process, set_start_method
 
+""" Gradient averaging. """
+def average_gradients(model):
+    size = float(dist.get_world_size())
+    for param in model.parameters():
+        dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+        param.grad.data /= size
+
+def get_mean_std_across_processes(x):
+    size = float(dist.get_world_size())
+    dist.all_reduce(x, op=dist.ReduceOp.SUM)
+    x = x / size
+    return x.mean(), x.std()
 
 """
 the replay buffer here is basically from the openai baselines code
@@ -120,38 +134,46 @@ def _select_actions(args, env_params, pi):
     return action
 
 
-def eval_agent(env, net, args):
+def eval_agent(env, env_params, net, args):
     total_success_rate = []
     for _ in range(5):
         per_success_rate = []
         observation = env.reset()
-        for _ in range(50):
-            obs_img = env.render(mode="rgb_array", height=100, width=100)
-            #show_video(obs_img)
-            obs_img = obs_img[np.newaxis, :].copy()
-            obs_img = torch.tensor(obs_img, dtype=torch.float32)
-            obs_img = obs_img.permute(0, 3, 1, 2)
+        obs_img = env.render(mode="rgb_array", height=100, width=100)
+        obs_img = obs_img[np.newaxis, :].copy()
+        obs_img = torch.tensor(obs_img, dtype=torch.float32)
+        obs_img = obs_img.permute(0, 3, 1, 2)
+        if args.cuda:
+            obs_img = obs_img.cuda()
 
-            if args.cuda:
-                obs_img = obs_img.cuda()
+        for _ in range(env_params['max_timesteps']):
 
             with torch.no_grad():
                 pi = net(obs_img)
                 actions = pi.detach().cpu().numpy().squeeze()
 
             observation_new, _, _, info = env.step(actions)
+
             obs_img = env.render(mode="rgb_array", height=100, width=100)
+            obs_img = obs_img[np.newaxis, :].copy()
+            obs_img = torch.tensor(obs_img, dtype=torch.float32)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+            if args.cuda:
+                obs_img = obs_img.cuda()
 
             per_success_rate.append(info['is_success'])
         total_success_rate.append(per_success_rate)
     total_success_rate = np.array(total_success_rate)
     local_success_rate = np.mean(total_success_rate[:, -1])
-    return local_success_rate
 
-def load_teacher_student(args):
+    local_success_rate = torch.tensor(local_success_rate).view(1)
+    global_succ_rate_mean, std = get_mean_std_across_processes(local_success_rate)
 
+    return global_succ_rate_mean
+
+def load_teacher_student(args, rank, size):
     env = gym.make('FetchPush-v1')
-    viewer = MjRenderContextOffscreen(env.sim)
+    viewer = MjRenderContextOffscreen(env.sim, device_id=rank)
     viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
     viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
     viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
@@ -173,9 +195,8 @@ def load_teacher_student(args):
     student_network, _, _, _ = model_factory('asym_goal_in_image', env_params)
 
     if args.cuda:
-        student_network.cuda()
-        teacher_network.cuda()
-
+        student_network.cuda(rank)
+        teacher_network.cuda(rank)
     student_optim = torch.optim.Adam(student_network.parameters(), lr=args.lr_actor)
 
     def _preproc_inputs_image(obs_img):
@@ -183,7 +204,7 @@ def load_teacher_student(args):
         obs_img = obs_img.permute(0, 3, 1, 2)
         
         if args.cuda:
-            obs_img = obs_img.cuda()
+            obs_img = obs_img.cuda(rank)
         return obs_img
     
     def _preproc_inputs(obs, g):
@@ -193,78 +214,117 @@ def load_teacher_student(args):
         inputs = np.concatenate([obs_norm, g_norm], axis=1)
         inputs = torch.tensor(inputs, dtype=torch.float32)
         if args.cuda:
-            inputs = inputs.cuda()
+            inputs = inputs.cuda(rank)
         return inputs
+
+    def get_exploration(ep):
+        '''
+        sets prob of agent picking expert actions
+        '''
+        if ep < 25:
+            # sample expert to aid exploration
+            return 0.5
+        else:
+            # make policy better
+            return 0.3
 
     steps = 0
     episodes = 0
     buffer = replay_buffer(env_params, 1e5)
     batch_size = 512
-    while True:
-        observation = env.reset()
-        observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
-
-        for i in range(50):
-            with torch.no_grad():
-                # teacher 
-                teacher_input_tensor = _preproc_inputs(observation["observation"].copy()[np.newaxis, :], observation["desired_goal"].copy()[np.newaxis, :])
-                pi_teacher = teacher_network(teacher_input_tensor)
-
-            student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy()[np.newaxis, :])
-            pi_student = student_network(student_input_tensor)
-
-
-            if random.uniform(0,1) > 0.4:
-                action = _select_actions(args, env_params, pi_student)
-            else:
-                action = _select_actions(args, env_params, pi_teacher)
-            
-            observation, _, _, info = env.step(action)
+    reward_plots = []
+    loss_plots = []
+    for epoch in range(args.n_epochs):
+        for _ in range(args.n_cycles):
+            observation = env.reset()
             observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
 
-            # store data in the buffer
-            buffer.store_episode(observation)
-
-            # update function
-            if steps > batch_size:
-                obs_state, des_goal, obs_img = buffer.sample(batch_size)
+            for i in range(args.num_rollouts_per_mpi):
                 with torch.no_grad():
-                    teacher_input_tensor = _preproc_inputs(obs_state, des_goal)
+                    # teacher 
+                    teacher_input_tensor = _preproc_inputs(observation["observation"].copy()[np.newaxis, :], observation["desired_goal"].copy()[np.newaxis, :])
                     pi_teacher = teacher_network(teacher_input_tensor)
-                student_input_tensor = _preproc_inputs_image(obs_img)
+
+                student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy()[np.newaxis, :])
                 pi_student = student_network(student_input_tensor)
+
+
+                if random.uniform(0,1) > get_exploration(epoch):
+                    action = _select_actions(args, env_params, pi_student)
+                else:
+                    action = _select_actions(args, env_params, pi_teacher)
                 
-                # minimize loss
-                student_loss = F.mse_loss(pi_student, pi_teacher)
+                observation, _, _, info = env.step(action)
+                observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
 
-                # step function
-                student_optim.zero_grad()
-                student_loss.backward()
-                student_optim.step()
+                # store data in the buffer
+                buffer.store_episode(observation)
+                
+                steps += 1
+
+            for _ in range(args.n_batches):
+                if steps > batch_size:
+                    obs_state, des_goal, obs_img = buffer.sample(batch_size)
+                    with torch.no_grad():
+                        teacher_input_tensor = _preproc_inputs(obs_state, des_goal)
+                        pi_teacher = teacher_network(teacher_input_tensor)
+                    student_input_tensor = _preproc_inputs_image(obs_img)
+                    pi_student = student_network(student_input_tensor)
+                    
+                    # minimize loss
+                    student_loss = F.mse_loss(pi_student, pi_teacher)
+
+                    # step function
+                    student_optim.zero_grad()
+                    student_loss.backward()
+
+                    average_gradients(student_network)
+
+                    student_optim.step()
+
+                    loss_plots.append(student_loss.item())
             
-            steps += 1
-
-        
-        if episodes % 100 == 0:
-            succ_rate = eval_agent(env, student_network, args)
-            # save latest model
-            # saving
-            save_path = "saved_models/distill/image_only/"
-
-            os.makedirs(save_path)
+        succ_rate = eval_agent(env, env_params, student_network, args)
+        reward_plots.append(succ_rate)
+        save_path = "saved_models/distill/image_only/"
+        if rank == 0:
+            try:
+                os.makedirs(save_path)
+            except FileExistsError:
+                pass
 
             torch.save({
                 "actor_net": student_network.state_dict(),
-                "meta_data": "image only, no normalization needed"
+                "meta_data": "image only, no normalization needed",
+                "reward": reward_plots,
+                "losses": loss_plots
             }, save_path + "model.pt")
 
-
             print(f"Succ rate is {succ_rate}")
+
 
         episodes += 1
 
 
 from arguments import get_args
+import argparse
 
-args = get_args()
-load_teacher_student(args)
+def init_process(rank, size, fn, my_args, backend='gloo'):
+    """ Initialize the distributed environment. """
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    dist.init_process_group(backend, rank=rank, world_size=size)
+    fn(my_args, rank, size)
+
+if __name__ == "__main__":
+    my_args = get_args()
+    processes = []
+    set_start_method('spawn')
+    for rank in range(my_args.num_workers):
+        p = Process(target=init_process, args=(rank, my_args.num_workers, load_teacher_student, my_args))
+        p.start()
+        processes.append(p)
+
+    for p in processes:
+        p.join()
+
