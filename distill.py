@@ -212,7 +212,7 @@ def load_teacher_student(args):
     def _preproc_inputs_image(obs_img):
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
-        
+        print(MPI.COMM_WORLD.Get_rank())        
         if args.cuda:
             obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
         return obs_img
