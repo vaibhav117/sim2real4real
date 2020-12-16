@@ -144,7 +144,7 @@ def eval_agent(env, env_params, net, args):
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)
         if args.cuda:
-            obs_img = obs_img.cuda()
+            obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
 
         for _ in range(env_params['max_timesteps']):
 
@@ -159,21 +159,29 @@ def eval_agent(env, env_params, net, args):
             obs_img = torch.tensor(obs_img, dtype=torch.float32)
             obs_img = obs_img.permute(0, 3, 1, 2)
             if args.cuda:
-                obs_img = obs_img.cuda()
+                obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
 
             per_success_rate.append(info['is_success'])
         total_success_rate.append(per_success_rate)
     total_success_rate = np.array(total_success_rate)
     local_success_rate = np.mean(total_success_rate[:, -1])
 
-    local_success_rate = torch.tensor(local_success_rate).view(1)
-    global_succ_rate_mean, std = get_mean_std_across_processes(local_success_rate)
+    global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
 
-    return global_succ_rate_mean
+    return global_success_rate
 
-def load_teacher_student(args, rank, size):
+def load_teacher_student(args):
     env = gym.make('FetchPush-v1')
-    viewer = MjRenderContextOffscreen(env.sim, device_id=rank)
+
+    env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    np.random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    torch.manual_seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    if args.cuda:
+        torch.cuda.manual_seed(args.seed + MPI.COMM_WORLD.Get_rank())
+
+
+    viewer = MjRenderContextOffscreen(env.sim, device_id=MPI.COMM_WORLD.Get_rank())
     viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
     viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
     viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
@@ -194,9 +202,11 @@ def load_teacher_student(args, rank, size):
     # init student
     student_network, _, _, _ = model_factory('asym_goal_in_image', env_params)
 
+    sync_networks(student_network)
+
     if args.cuda:
-        student_network.cuda(rank)
-        teacher_network.cuda(rank)
+        student_network.cuda(MPI.COMM_WORLD.Get_rank())
+        teacher_network.cuda(MPI.COMM_WORLD.Get_rank())
     student_optim = torch.optim.Adam(student_network.parameters(), lr=args.lr_actor)
 
     def _preproc_inputs_image(obs_img):
@@ -204,7 +214,7 @@ def load_teacher_student(args, rank, size):
         obs_img = obs_img.permute(0, 3, 1, 2)
         
         if args.cuda:
-            obs_img = obs_img.cuda(rank)
+            obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
         return obs_img
     
     def _preproc_inputs(obs, g):
@@ -214,7 +224,7 @@ def load_teacher_student(args, rank, size):
         inputs = np.concatenate([obs_norm, g_norm], axis=1)
         inputs = torch.tensor(inputs, dtype=torch.float32)
         if args.cuda:
-            inputs = inputs.cuda(rank)
+            inputs = inputs.cuda(MPI.COMM_WORLD.Get_rank())
         return inputs
 
     def get_exploration(ep):
@@ -278,7 +288,7 @@ def load_teacher_student(args, rank, size):
                     student_optim.zero_grad()
                     student_loss.backward()
 
-                    average_gradients(student_network)
+                    sync_grads(student_network)
 
                     student_optim.step()
 
@@ -287,7 +297,7 @@ def load_teacher_student(args, rank, size):
         succ_rate = eval_agent(env, env_params, student_network, args)
         reward_plots.append(succ_rate)
         save_path = "saved_models/distill/image_only/"
-        if rank == 0:
+        if MPI.COMM_WORLD.Get_rank() == 0:
             try:
                 os.makedirs(save_path)
             except FileExistsError:
@@ -309,23 +319,12 @@ def load_teacher_student(args, rank, size):
 from arguments import get_args
 import argparse
 
-def init_process(rank, size, fn, my_args, backend='gloo'):
-    """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
-    dist.init_process_group(backend, rank=rank, world_size=size)
-    fn(my_args, rank, size)
 
 if __name__ == "__main__":
     my_args = get_args()
-    # processes = []
-    # set_start_method('spawn')
-    # for rank in range(my_args.num_workers):
-    #     p = Process(target=init_process, args=(rank, my_args.num_workers, load_teacher_student, my_args))
-    #     p.start()
-    #     processes.append(p)
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['IN_MPI'] = '1'
 
-    # for p in processes:
-    #     p.join()
-    init_process(0, 0, load_teacher_student, my_args, backend='mpi')
+    load_teacher_student(my_args)
 
