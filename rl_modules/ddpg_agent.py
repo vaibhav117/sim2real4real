@@ -221,7 +221,10 @@ class ddpg_agent(Agent):
             'g_mean': self.g_norm.mean,
             'g_std': self.g_norm.std,
             'actor_optim': self.actor_optim.state_dict(),
-            'critic_optim': self.critic_optim.state_dict()
+            'critic_optim': self.critic_optim.state_dict(),
+            'reward': self.mean_rewards,
+            'actor_losses': self.actor_loss,
+            'critic_losses': self.critic_loss
         }
 
         torch.save(save_dict, self.model_path + '/model.pt')
@@ -412,14 +415,8 @@ class ddpg_agent(Agent):
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
-                self.save_models()
                 self.mean_rewards.append(success_rate)
-                plt.plot(self.mean_rewards, color="red", label="Rewards")
-                plt.xlabel('num steps')
-                plt.ylabel('success rate')
-                plt.legend()
-                plt.savefig('reward_plot.png')
-                plt.clf()
+                self.save_models()
 
 
     # pre_process the inputs
@@ -719,12 +716,5 @@ class ddpg_agent(Agent):
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
-        plt.plot(self.actor_loss, color="red", label="Actor Loss")
-        plt.plot(self.critic_loss, color="blue", label="Critic Loss")
-        plt.xlabel('num steps')
-        plt.ylabel('loss value')
-        plt.legend()
-        plt.savefig('loss_plot.png')
-        plt.clf()
 
         return global_success_rate / MPI.COMM_WORLD.Get_size()
