@@ -136,7 +136,7 @@ def _select_actions(args, env_params, pi):
 
 def eval_agent(env, env_params, net, args):
     total_success_rate = []
-    for _ in range(5):
+    for _ in range(args.n_test_rollouts):
         per_success_rate = []
         observation = env.reset()
         obs_img = env.render(mode="rgb_array", height=100, width=100)
@@ -191,8 +191,8 @@ def load_teacher_student(args):
     env_params["load_saved"] = False
 
     # load teacher
-    teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
-    #teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
+    # teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
+    teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
     obj = torch.load(teacher_path, map_location=lambda storage, loc: storage)
 
     # init teacher
@@ -229,12 +229,15 @@ def load_teacher_student(args):
     def get_exploration(ep):
         '''
         sets prob of agent picking expert actions
+        if greater than certain amount, pick student, so higher amount aids expert
         '''
         if ep < 25:
             # sample expert to aid exploration
+            return 0.7
+        elif ep < 75:
+            # make policy better
             return 0.5
         else:
-            # make policy better
             return 0.3
 
     steps = 0
@@ -245,31 +248,31 @@ def load_teacher_student(args):
     loss_plots = []
     for epoch in range(args.n_epochs):
         for _ in range(args.n_cycles):
-            observation = env.reset()
-            observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
-
             for i in range(args.num_rollouts_per_mpi):
-                with torch.no_grad():
-                    # teacher 
-                    teacher_input_tensor = _preproc_inputs(observation["observation"].copy()[np.newaxis, :], observation["desired_goal"].copy()[np.newaxis, :])
-                    pi_teacher = teacher_network(teacher_input_tensor)
-
-                student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy()[np.newaxis, :])
-                pi_student = student_network(student_input_tensor)
-
-
-                if random.uniform(0,1) > get_exploration(epoch):
-                    action = _select_actions(args, env_params, pi_student)
-                else:
-                    action = _select_actions(args, env_params, pi_teacher)
-                
-                observation, _, _, info = env.step(action)
+                observation = env.reset()
                 observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
+                for t in range(env_params['max_timesteps']):
+                    with torch.no_grad():
+                        # teacher 
+                        teacher_input_tensor = _preproc_inputs(observation["observation"].copy()[np.newaxis, :], observation["desired_goal"].copy()[np.newaxis, :])
+                        pi_teacher = teacher_network(teacher_input_tensor)
 
-                # store data in the buffer
-                buffer.store_episode(observation)
-                
-                steps += 1
+                    student_input_tensor = _preproc_inputs_image(observation["observation_image"].copy()[np.newaxis, :])
+                    pi_student = student_network(student_input_tensor)
+
+
+                    if random.uniform(0,1) > get_exploration(epoch):
+                        action = _select_actions(args, env_params, pi_student)
+                    else:
+                        action = _select_actions(args, env_params, pi_teacher)
+                    
+                    observation, _, _, info = env.step(action)
+                    observation["observation_image"] = env.render(mode="rgb_array", height=100, width=100)
+
+                    # store data in the buffer
+                    buffer.store_episode(observation)
+                    
+                    steps += 1
 
             for _ in range(args.n_batches):
                 if steps > batch_size:
