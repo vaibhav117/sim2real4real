@@ -148,13 +148,12 @@ class ddpg_agent(Agent):
             # get state based nets and load the weights
             env_params["load_saved"] = False
             self.teacher_actor_network, _, self.teacher_critic_network, _ = model_factory('sym_state', env_params)
-            env_params["load_saved"] = self.args.loadsaved
-            model_path = 'saved_models/sym_state/' + args.env_name + '/model.pt'
-            obj = torch.load(model_path)
+            model_path = 'sym_server_weights/sym_state/' + args.env_name + '/model.pt'
+            obj = torch.load(model_path, map_location=torch.device('cpu'))
             self.teacher_actor_network.load_state_dict(obj["actor_net"])
             self.teacher_critic_network.load_state_dict(obj["critic_net"])
-            self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
-            self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
+            # self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
+            # self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
             print(f"Loaded the teacher networks, distillation init..")
         
         # if use gpu
@@ -222,7 +221,7 @@ class ddpg_agent(Agent):
             'g_std': self.g_norm.std,
             'actor_optim': self.actor_optim.state_dict(),
             'critic_optim': self.critic_optim.state_dict(),
-            'reward': self.mean_rewards,
+            'reward_plots': self.mean_rewards,
             'actor_losses': self.actor_loss,
             'critic_losses': self.critic_loss
         }

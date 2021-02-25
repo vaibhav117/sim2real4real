@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco>
+	<compiler angle="radian" coordinate="local" meshdir="../stls/fetch" texturedir="../textures"></compiler>
+	<option timestep="0.002">
+		<flag warmstart="enable"></flag>
+	</option>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.44 0.85 0.56" rgb2="0.46 0.87 0.58" width="32" height="32"></texture>
+        <texture name="texture_block" file="block.png" gridsize="3 4" gridlayout=".U..LFRB.D.."></texture>
+
+        <texture builtin="flat" name="texgeom" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="gripper_finger_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="gripper_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="arm_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="head_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="torso_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+		<texture builtin="flat" name="base_tex" height="32" width="32" rgb1="1 1 1" type="cube"></texture>
+
+
+        <material name="floor_mat" specular="0" shininess="0.5" reflectance="0" rgba="0.2 0.2 0.2 1" texture="texgeom"></material>
+        <material name="table_mat" specular="0" shininess="0.5" reflectance="0" rgba="0.93 0.93 0.93 1" texture="texgeom"></material>
+        <material name="block_mat" specular="0" shininess="0.5" reflectance="0" rgba="0.2 0.2 0.2 1" texture="texgeom"></material>
+        <material name="puck_mat" specular="0" shininess="0.5" reflectance="0" rgba="0.2 0.2 0.2 1" texture="texgeom"></material>
+
+        <material name="robot0:geomMat" shininess="0.03" specular="0.4" texture="texgeom"></material>
+        <material name="robot0:gripper_finger_mat" shininess="0.03" specular="0.4" reflectance="0" texture="gripper_finger_tex"></material>
+        <material name="robot0:gripper_mat" shininess="0.03" specular="0.4" reflectance="0" texture="gripper_tex"></material>
+        <material name="robot0:arm_mat" shininess="0.03" specular="0.4" reflectance="0"  texture="arm_tex"></material>
+        <material name="robot0:head_mat" shininess="0.03" specular="0.4" reflectance="0" texture="head_tex"></material>
+        <material name="robot0:torso_mat" shininess="0.03" specular="0.4" reflectance="0" texture="torso_tex"></material>
+        <material name="robot0:base_mat" shininess="0.03" specular="0.4" reflectance="0" texture="base_tex"></material>
+
+
+        
+        <mesh file="base_link_collision.stl" name="robot0:base_link"></mesh>
+        <mesh file="bellows_link_collision.stl" name="robot0:bellows_link"></mesh>
+        <mesh file="elbow_flex_link_collision.stl" name="robot0:elbow_flex_link"></mesh>
+        <mesh file="estop_link.stl" name="robot0:estop_link"></mesh>
+        <mesh file="forearm_roll_link_collision.stl" name="robot0:forearm_roll_link"></mesh>
+        <mesh file="gripper_link.stl" name="robot0:gripper_link"></mesh>
+        <mesh file="head_pan_link_collision.stl" name="robot0:head_pan_link"></mesh>
+        <mesh file="head_tilt_link_collision.stl" name="robot0:head_tilt_link"></mesh>
+        <mesh file="l_wheel_link_collision.stl" name="robot0:l_wheel_link"></mesh>
+        <mesh file="laser_link.stl" name="robot0:laser_link"></mesh>
+        <mesh file="r_wheel_link_collision.stl" name="robot0:r_wheel_link"></mesh>
+        <mesh file="torso_lift_link_collision.stl" name="robot0:torso_lift_link"></mesh>
+        <mesh file="shoulder_pan_link_collision.stl" name="robot0:shoulder_pan_link"></mesh>
+        <mesh file="shoulder_lift_link_collision.stl" name="robot0:shoulder_lift_link"></mesh>
+        <mesh file="upperarm_roll_link_collision.stl" name="robot0:upperarm_roll_link"></mesh>
+        <mesh file="wrist_flex_link_collision.stl" name="robot0:wrist_flex_link"></mesh>
+        <mesh file="wrist_roll_link_collision.stl" name="robot0:wrist_roll_link"></mesh>
+        <mesh file="torso_fixed_link.stl" name="robot0:torso_fixed_link"></mesh>
+    </asset>
+
+    <default>
+        <default class="robot0:fetch">
+            <geom margin="0.001" material="robot0:geomMat" rgba="1 1 1 1" solimp="0.99 0.99 0.01" solref="0.01 1" type="mesh" user="0"></geom>
+            <joint armature="1" damping="50" frictionloss="0" stiffness="0"></joint>
+            
+            <default class="robot0:fetchGripper">
+                <geom condim="4" margin="0.001" type="box" user="0" rgba="0.356 0.361 0.376 1.0"></geom>
+                <joint armature="100" damping="1000" limited="true" solimplimit="0.99 0.999 0.01" solreflimit="0.01 1" type="slide"></joint>
+            </default>
+
+            <default class="robot0:grey">
+                <geom rgba="0.356 0.361 0.376 1.0"></geom>
+            </default>
+            <default class="robot0:blue">
+                <geom rgba="0.086 0.506 0.767 1.0"></geom>
+            </default>
+        </default>
+    </default>
+
+	<actuator>
+        <motor ctrllimited="true" ctrlrange="-50.0 50.0" joint="Actuator1" name="torq_j1"/>
+        <motor ctrllimited="true" ctrlrange="-50.0 50.0" joint="Actuator2" name="torq_j2"/>
+        <motor ctrllimited="true" ctrlrange="-30.0 30.0" joint="Actuator3" name="torq_j3"/>
+        <motor ctrllimited="true" ctrlrange="-30.0 30.0" joint="Actuator4" name="torq_j4"/>
+        <motor ctrllimited="true" ctrlrange="-30.0 30.0" joint="Actuator5" name="torq_j5"/>
+        <motor ctrllimited="true" ctrlrange="-20.0 20.0" joint="Actuator6" name="torq_j6"/>
+        <motor ctrllimited="true" ctrlrange="-20.0 20.0" joint="Actuator7" name="torq_j7"/>
+        <!-- <velocity ctrllimited="true" ctrlrange="-2.1750 2.1750" joint="Actuator1" kv="10" name="vel_j1"/>
+        <velocity ctrllimited="true" ctrlrange="-2.1750 2.1750" joint="Actuator2" kv="10" name="vel_j2"/>
+        <velocity ctrllimited="true" ctrlrange="-2.1750 2.1750" joint="Actuator3" kv="10" name="vel_j3"/>
+        <velocity ctrllimited="true" ctrlrange="-2.1750 2.1750" joint="Actuator4" kv="5" name="vel_j4"/>
+        <velocity ctrllimited="true" ctrlrange="-2.6100 2.6100" joint="Actuator5" kv="5" name="vel_j5"/>
+        <velocity ctrllimited="true" ctrlrange="-2.6100 2.6100" joint="Actuator6" kv="2.0" name="vel_j6"/>
+        <velocity ctrllimited="true" ctrlrange="-2.6100 2.6100" joint="Actuator7" kv="2.0" name="vel_j7"/> -->
+    </actuator> 
+
+	<asset>
+        <mesh name="link_base" file="link_base.STL" />
+        <mesh name="link1" file="link1.STL" />
+        <mesh name="link2" file="link2.STL" />
+        <mesh name="link3" file="link3.STL" />
+        <mesh name="link4" file="link4.STL" />
+        <mesh name="link5" file="link5.STL" />
+        <mesh name="link6" file="link6.STL" />
+        <mesh name="link7" file="link7.STL" />
+
+    </asset>
+
+	<equality>
+        <weld body1="robot0:mocap2" body2="right_hand" solimp="0.9 0.95 0.001" solref="0.02 1"></weld>
+    </equality>
+
+	<worldbody>
+		<geom name="floor0" pos="0.8 0.75 0" size="0.85 0.7 1" type="plane" condim="3" material="floor_mat"></geom>
+		<body name="floor0" pos="0.8 0.75 0">
+			<site name="target0" pos="0 0 0.5" size="0.02 0.02 0.02" rgba="1 0 0 1" type="sphere"></site>
+		</body>
+
+    <body mocap="true" name="robot0:mocap2" pos="0 0 0">
+		<geom conaffinity="0" contype="0" pos="0 0 0" rgba="0 0.5 0 0.7" size="0.005 0.005 0.005" type="box"></geom>
+		<geom conaffinity="0" contype="0" pos="0 0 0" rgba="0 0.5 0 0.1" size="1 0.005 0.005" type="box"></geom>
+		<geom conaffinity="0" contype="0" pos="0 0 0" rgba="0 0.5 0 0.1" size="0.005 1 0.001" type="box"></geom>
+		<geom conaffinity="0" contype="0" pos="0 0 0" rgba="0 0.5 0 0.1" size="0.005 0.005 1" type="box"></geom>
+	</body>
+    <!-- <body name="base" pos="0 0 0"> -->
+    <body name="base" pos="1 0.75 0.4">
+        <camera mode="fixed" name="robotview" pos="1.0 0 0.4" quat="0.653 0.271 0.271 0.653"/>
+        <inertial diaginertia="0 0 0" mass="0" pos="0 0 0"/>
+
+        <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link_base" />
+        <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link_base" />
+        <body name="link1" pos="0 0 0.267">
+            <inertial pos="-0.0042142 0.02821 -0.0087788" quat="0.917781 -0.277115 0.0606681 0.277858" mass="0.42603" diaginertia="0.00144551 0.00137757 0.000823511" />
+            <joint name="Actuator1" pos="0 0 0" axis="0 0 1" limited="true" range="-6.28319 6.28319" damping="0.1" frictionloss="0.01" />
+            <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link1" />
+            <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link1" name="link1_collision"/>
+            <body name="link2" pos="0 0 0" quat="0.707105 -0.707108 0 0">
+                <inertial pos="-3.3178e-05 -0.12849 0.026337" quat="0.447793 0.894132 -0.00224061 0.00218314" mass="0.56095" diaginertia="0.00319151 0.00311598 0.000980804" />
+                <joint name="Actuator2" pos="0 0 0" axis="0 0 1" limited="true" range="-2.059 2.0944" damping="0.1" frictionloss="0.01" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link2" />
+                <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link2" name="link2_collision"/>
+                <body name="link3" pos="0 -0.293 0" quat="0.707105 0.707108 0 0">
+                    <inertial pos="0.04223 -0.023258 -0.0096674" quat="0.883205 0.339803 0.323238 0.000542237" mass="0.44463" diaginertia="0.00133227 0.00119126 0.000780475" />
+                    <joint name="Actuator3" pos="0 0 0" axis="0 0 1" limited="true" range="-6.28319 6.28319" damping="0.1" frictionloss="0.01" />
+                    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link3" />
+                    <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link3" name="link3_collision"/>
+                    <body name="link4" pos="0.0525 0 0" quat="0.707105 0.707108 0 0">
+                        <inertial pos="0.067148 -0.10732 0.024479" quat="0.0654142 0.483317 -0.738663 0.465298" mass="0.52387" diaginertia="0.00288984 0.00282705 0.000894409" />
+                        <joint name="Actuator4" pos="0 0 0" axis="0 0 1" limited="true" range="-0.19198 3.927" damping="0.1" frictionloss="0.01" />
+                        <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link4" />
+                        <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link4" name="link4_collision"/>
+                        <body name="link5" pos="0.0775 -0.3425 0" quat="0.707105 0.707108 0 0">
+                            <inertial pos="-0.00023397 0.036705 -0.080064" quat="0.981064 -0.19003 0.00637998 0.0369004" mass="0.18554" diaginertia="0.00099553 0.000988613 0.000247126" />
+                            <joint name="Actuator5" pos="0 0 0" axis="0 0 1" limited="true" range="-6.28319 6.28319" damping="0.1" frictionloss="0.01" />
+                            <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link5" />
+                            <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link5" name="link5_collision"/>
+                            <body name="link6" pos="0 0 0" quat="0.707105 0.707108 0 0">
+                                <inertial pos="0.058911 0.028469 0.0068428" quat="-0.188705 0.793535 0.166088 0.554173" mass="0.31344" diaginertia="0.000827892 0.000768871 0.000386708" />
+                                <joint name="Actuator6" pos="0 0 0" axis="0 0 1" limited="true" range="-1.69297 3.14159" damping="0.01" frictionloss="0.01" />
+                                <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link6" />
+                                <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link6" name="link6_collision"/>
+                                <body name="link7" pos="0.076 0.097 0" quat="0.707105 -0.707108 0 0">
+                                    <inertial pos="-1.5846e-05 -0.0046377 -0.012705" quat="0.495801 0.504435 -0.503065 0.496642" mass="0.31468" diaginertia="0.000260352 0.00016985 0.000119208" />
+                                    <joint name="Actuator7" pos="0 0 0" axis="0 0 1" limited="true" range="-6.28319 6.28319" damping="0.01" frictionloss="0.01" />
+                                    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1" mesh="link7" />
+                                    <geom type="mesh" conaffinity="0" rgba="0.75294 0.75294 0.75294 1" mesh="link7" name="link7_collision"/>
+                                    <!-- <body name="right_hand" pos="0 0 -0.065" quat="0 0.707105 -0.707108 0 "> -->
+                                    <body name="right_hand" pos="0 0 0" quat="0 0 0 1">
+                                        <!-- This sites were added for visualization. They are all standardized between models-->
+                                        <!-- Position mimics the gripper attachment point (right_hand) -->
+                                        <!--  Y-axis should be perpendicular to grasping motion, and Z-axis should point out of the robot eef -->
+                                        <site name="ee" pos="0 0 0" size="0.01 0.01 0.01" rgba="0 0 1 1" type="sphere" group="1"/>
+                                        <site name="ee_x" pos="0 0 0" size="0.005 .1"  quat="0.707105 0.707108 0 0 " rgba="1 0 0 0" type="cylinder" group="1"/>
+                                        <site name="ee_z" pos="0 0 0" size="0.005 .1" quat="0.707105 0 0 0.707108" rgba="0 0 1 0" type="cylinder" group="1"/>
+                                        <site name="ee_y" pos="0 0 0" size="0.005 .1" quat="0.707105 0 0.707108 0 " rgba="0 1 0 0" type="cylinder" group="1"/>
+                                        <!-- This camera points out from the eef. -->
+                                        <camera mode="fixed" name="eye_in_hand" pos="-0.05 0 0" quat="0 -0.707108 0.707108 0" fovy="75"/>
+                                        <!-- To add gripper -->
+                                    </body>
+                                </body>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </body>
+    
+    <site name="hand-goal-site" type="cylinder" pos="0 0.5 0" size="0.06 0.001" rgba="0.5 0.2 0.2 1"/>
+
+		
+		<body pos="1.3 0.75 0.2" name="table0">
+			<geom size="0.25 0.35 0.2" type="box" mass="2000" material="table_mat"></geom>
+		</body>
+
+		<light directional="true" ambient="0.2 0.2 0.2" diffuse="0.8 0.8 0.8" specular="0.3 0.3 0.3" castshadow="false" pos="0 0 4" dir="0 0 -1" name="light0"></light>
+	</worldbody>
+	
+	<actuator></actuator>
+</mujoco>

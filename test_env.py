@@ -24,7 +24,6 @@ def env_setup(env, goal):
 
     # qpos = env.sim.data.qpos
 
-
     # Move end effector into position.
     gripper_target = np.array([-0.498, 0.005, -0.431 + env.gripper_extra_height]) + env.sim.data.get_site_xpos('robot0:grip')
     gripper_rotation = np.array([1., 0., 1., 0.])
@@ -151,7 +150,7 @@ def goal_realign(mode):
         env.env._get_viewer("human").render()
 
 
-goal_realign(mode='fetch_push')
+# goal_realign(mode='fetch_push')
 
 def plot_shit():
     rews_sym_images = [0, 0, 0.1, 0, 0.1, 0.2, 0.1, 0.4, 0.1, 0.2, 0, 0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.5, 0.4, 0.1, 0.3]
@@ -176,4 +175,6 @@ def plot_shit():
 #     env.env._get_viewer("human").render()
 #     env_setup(env.env, observation["desired_goal"])
 #     env.env._get_viewer("human").render()
-#     # print("hello")
+
+env = gym.make('FetchReach-v1')
+print(env.action_space.sample())

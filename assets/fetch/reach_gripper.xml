@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco>
+	<compiler angle="radian" coordinate="local" meshdir="fetch" texturedir="../textures"></compiler>
+	<size njmax="500" nconmax="100" />
+    <default>
+        <joint armature="1" damping="0.1" limited="true"/>
+    </default>
+    <asset>
+        <mesh name="link_base" file="link_base.STL" />
+        <mesh name="link1" file="link1.STL" />
+        <mesh name="link2" file="link2.STL" />
+        <mesh name="link3" file="link3.STL" />
+        <mesh name="link4" file="link4.STL" />
+        <mesh name="link5" file="link5.STL" />
+        <mesh name="link6" file="link6.STL" />
+        <mesh name="link7" file="link7.STL" />
+        <mesh name="base_link" file="base_link.STL" />
+        <mesh name="left_outer_knuckle" file="left_outer_knuckle.STL" />
+        <mesh name="left_finger" file="left_finger.STL" />
+        <mesh name="left_inner_knuckle" file="left_inner_knuckle.STL" />
+        <mesh name="right_outer_knuckle" file="right_outer_knuckle.STL" />
+        <mesh name="right_finger" file="right_finger.STL" />
+        <mesh name="right_inner_knuckle" file="right_inner_knuckle.STL" />
+    </asset>
+
+    <option timestep="0.002">
+		<flag warmstart="enable"></flag>
+	</option>
+
+	<include file="shared.xml"></include>
+
+	<worldbody>
+		<geom name="floor0" pos="0.8 0.75 0" size="0.85 0.7 1" type="plane" condim="3" material="floor_mat"></geom>
+		<body name="floor0" pos="0.8 0.75 0">
+			<site name="target0" pos="0 0 0.5" size="0.02 0.02 0.02" rgba="1 0 0 1" type="sphere"></site>
+		</body>
+
+		<include file="xarm_with_gripper.xml"></include>
+		
+		<body pos="1.3 0.75 0.2" name="table0">
+			<geom size="0.25 0.35 0.2" type="box" mass="2000" material="table_mat"></geom>
+		</body>
+
+		<light directional="true" ambient="0.2 0.2 0.2" diffuse="0.8 0.8 0.8" specular="0.3 0.3 0.3" castshadow="false" pos="0 0 4" dir="0 0 -1" name="light0"></light>
+	</worldbody>
+
+    <equality>
+    	<connect body2="left_finger" body1="left_inner_knuckle" anchor="0.0 0.035 0.042" solimp="0.9 0.95 0.001 0.5 2" solref="0.0002 1.0" ></connect>
+    	<connect body2="right_finger" body1="right_inner_knuckle" anchor="0.0 -0.035 0.042" solimp="0.9 0.95 0.001 0.5 2" solref="0.0002 1.0" ></connect>
+        <joint joint1="left_inner_knuckle_joint" joint2="right_inner_knuckle_joint"></joint>
+    </equality>
+    <actuator>
+    	<motor ctrllimited="true" ctrlrange="-1.0 1.0" joint="left_inner_knuckle_joint" gear="10.0"/>
+        <!--<position ctrllimited="true" ctrlrange="0 0.85" gear="1" kp="10" joint="left_inner_knuckle_joint"/>-->
+    </actuator>
+	
+</mujoco>

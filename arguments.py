@@ -40,7 +40,6 @@ def get_args():
     parser.add_argument('--task', type=str, default="sym_state", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--mode', type=str, default="reach", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--randomize', action='store_true', help='add domain randomization')
-
     args = parser.parse_args()
 
     return args

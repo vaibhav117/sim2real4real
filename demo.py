@@ -10,6 +10,7 @@ from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightM
 from rl_modules.ddpg_agent import model_factory
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 #video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
@@ -26,15 +27,15 @@ def get_env_params(env):
     params['max_timesteps'] = env._max_episode_steps
     return params
 
-# pre_process the inputs
-def _preproc_inputs_image(obs_img, g, cuda):
-    obs_img = torch.tensor(obs_img, dtype=torch.float32)
-    obs_img = obs_img.permute(0, 3, 1, 2)
-    g_norm = torch.tensor(g, dtype=torch.float32)
-    if cuda:
-        obs_img = obs_img.cuda()
-        g_norm = g_norm.cuda()
-    return obs_img, g_norm
+# # pre_process the inputs
+# def _preproc_inputs_image(obs_img, g, cuda):
+#     obs_img = torch.tensor(obs_img, dtype=torch.float32)
+#     obs_img = obs_img.permute(0, 3, 1, 2)
+#     g_norm = torch.tensor(g, dtype=torch.float32)
+#     if cuda:
+#         obs_img = obs_img.cuda()
+#         g_norm = g_norm.cuda()
+#     return obs_img, g_norm
 
 def _eval_agent(args, paths, image_based=True, cuda=False):
 
@@ -49,36 +50,66 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
         viewer.cam.elevation = -25
         env.env._viewers['rgb_array'] = viewer
 
-        # model_path = '../../test.pt'
-        # model_path = './server_weights/asym_goal_in_image/FetchPush-v1/model.pt'
-        # model_path = './weird_weights/FetchSlide-v1/model.pt'
-        # model_path = './randomized_server_weights/FetchReach-v1/model.pt'
-        # model_path = args.save_dir + args.env_name + '/model.pt'
-
 
         # env params
         env_params = get_env_params(env)
         env_params["model_path"] = paths[args.env_name][args.task] # TODO: fix bad practice
         env_params["load_saved"] = args.loadsaved
-
+        
         loaded_model, _, _, _ = model_factory(args.task, env_params)
 
-        # if args.task == 'sym_image':
-        #     loaded_model = sym_image(get_env_params(env))
-        # else:
-        #     loaded_model = asym_goal_outside_image(get_env_params(env))
         model_path = paths[args.env_name][args.task] + '/model.pt'
-        obj = torch.load(model_path, map_location=lambda storage, loc: storage)
-        loaded_model.load_state_dict(obj['actor_net'])
-
-        # loaded_model.load_state_dict(obj[4])
+        if args.task != 'sym_state':
+            obj = torch.load(model_path, map_location=lambda storage, loc: storage)
+            loaded_model.load_state_dict(obj['actor_net'])
+            # plt.plot(obj["losses"])
+            # plt.show()
+        else:
+            o_mean, o_std, g_mean, g_std, actor_state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)
+            loaded_model.load_state_dict(actor_state_dict)
+            obj = {}
+            obj["g_mean"] = g_mean
+            obj["g_std"] = g_std
 
         if cuda:
             loaded_model.cuda()
 
         total_success_rate = []
         rollouts = []
-        print("loaded")
+
+        def _preproc_inputs_image_goal(obs_img, g):
+            obs_img = torch.tensor(obs_img, dtype=torch.float32)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+            g = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+            g_norm = torch.tensor( g, dtype=torch.float32)
+            # g_norm = torch.tensor(g, dtype=torch.float32)
+            if args.cuda:
+                obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+                g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
+            return obs_img, g_norm
+        
+        def _prepoc_image(obs_img):
+            obs_img = torch.tensor(obs_img, dtype=torch.float32)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+            if args.cuda:
+                obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+            return obs_img
+
+        def get_policy(obs_img, g):
+            if args.task == "sym_state":
+                raise NotImplementedError
+            if args.task == "asym_goal_outside_image":
+                o_tensor, g_tensor = _preproc_inputs_image_goal(obs_img, g)
+                pi = loaded_model(o_tensor, g_tensor)
+                return pi
+            if args.task == "asym_goal_in_image":
+                pi = loaded_model(_prepoc_image(obs_img))
+                return pi
+            if args.task == "sym_image":
+                o_tensor, _ = _preproc_inputs_image_goal(obs_img, g)
+                pi = loaded_model(o_tensor)
+                return pi
+
         for _ in range(args.n_test_rollouts):
             per_success_rate = []
             observation = env.reset()
@@ -86,27 +117,18 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
             g = observation['desired_goal']
             rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
-            modder = TextureModder(env.sim)
+            # modder = TextureModder(env.sim)
             # randomize_textures(modder, env.sim)
             for _ in range(env._max_episode_steps):
                 # env.render()
                 rollout.append(obs_img)
                 #video.write(obs_img)
-                #cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
-                #cv2.waitKey(0)
+                cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
+                cv2.waitKey(0)
                 with torch.no_grad():
-                    if args.task == 'sym_image':
-                        o_tensor, _ = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
-                        pi = loaded_model(o_tensor)
-                    else:
-                        if image_based:
-                            o_tensor, g_tensor = _preproc_inputs_image(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], cuda)
-                            pi = loaded_model(o_tensor, g_tensor)
-                        else:
-                            input_tensor = self._preproc_inputs(obs, g)
-                            pi = actor_network(input_tensor)
-                    # convert the actions
+                    pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
                     actions = pi.detach().cpu().numpy().squeeze()
+                print(f"Actions {actions}")
                 observation_new, _, _, info = env.step(actions)
                 obs = observation_new['observation']
                 obs_img = env.render(mode="rgb_array", height=100, width=100)
@@ -138,13 +160,15 @@ def process_inputs(o, g, o_mean, o_std, g_mean, g_std, args):
 if __name__ == '__main__':
     paths = {
         'FetchReach-v1': {
-            'sym_state': './weights/saved_models/FetchReach-v1/',
-            'asym_goal_outside_image': './saved_model/asym_goal_outside_image/FetchReach-v1/',
-            'asym_goal_in_image': '',
+            'sym_state': './all_weigths/FetchReach-v1/',
+            'asym_goal_outside_image': './randomized_server_weights/asym_goal_outside_image/FetchReach-v1/',
+            'asym_goal_in_image': 'sym_server_weights/distill/',
             'sym_image': ''
         },
         'FetchPush-v1': {
-
+            'sym_state': '',
+            'asym_goal_in_image': 'sym_server_weights/saved_models/distill/image_only/',
+            'asym_goal_outside_image': './sym_server_weights/asym_goal_outside_image_distill/FetchPush-v1/',
         },
         'FetchSlide-v1': {
 
@@ -156,5 +180,6 @@ if __name__ == '__main__':
     args = get_args()
     args.env_name = 'FetchReach-v1'
     args.task = 'asym_goal_outside_image'
+    # args.task = 'sym_state'
     _eval_agent(args, paths)
   
