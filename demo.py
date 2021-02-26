@@ -11,9 +11,14 @@ from rl_modules.ddpg_agent import model_factory
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from xarm_env.load_xarm7 import ReachXarm
 
 
 #video=cv2.VideoWriter('video.mp4',-1,1,(100,100))
+def randomize_camera(viewer):
+    viewer.cam.distance = 1.2 + np.random.uniform(-0.05, 0.05)
+    viewer.cam.azimuth = 180 + np.random.uniform(-1, 1)
+    viewer.cam.elevation = -25 + np.random.uniform(1, 2)
 
 
 def get_env_params(env):
@@ -37,10 +42,9 @@ def get_env_params(env):
 #         g_norm = g_norm.cuda()
 #     return obs_img, g_norm
 
-def _eval_agent(args, paths, image_based=True, cuda=False):
+def _eval_agent(args, paths, env, image_based=True, cuda=False):
 
         # load model
-        env = gym.make(args.env_name)
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
         # self.viewer.cam.fixedcamid = 3
@@ -53,12 +57,12 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
 
         # env params
         env_params = get_env_params(env)
-        env_params["model_path"] = paths[args.env_name][args.task] # TODO: fix bad practice
+        env_params["model_path"] = paths[args.env_name]['xarm'][args.task] # TODO: fix bad practice
         env_params["load_saved"] = args.loadsaved
         
         loaded_model, _, _, _ = model_factory(args.task, env_params)
 
-        model_path = paths[args.env_name][args.task] + '/model.pt'
+        model_path = paths[args.env_name]['xarm'][args.task] + '/model.pt'
         if args.task != 'sym_state':
             obj = torch.load(model_path, map_location=lambda storage, loc: storage)
             loaded_model.load_state_dict(obj['actor_net'])
@@ -117,9 +121,11 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
             g = observation['desired_goal']
             rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
-            # modder = TextureModder(env.sim)
-            # randomize_textures(modder, env.sim)
+            modder = TextureModder(env.sim)
+            randomize_textures(modder, env.sim)
+            randomize_camera(viewer)
             for _ in range(env._max_episode_steps):
+                # randomize_camera(viewer)
                 # env.render()
                 rollout.append(obs_img)
                 #video.write(obs_img)
@@ -128,7 +134,7 @@ def _eval_agent(args, paths, image_based=True, cuda=False):
                 with torch.no_grad():
                     pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
                     actions = pi.detach().cpu().numpy().squeeze()
-                print(f"Actions {actions}")
+                # print(f"Actions {actions}")
                 observation_new, _, _, info = env.step(actions)
                 obs = observation_new['observation']
                 obs_img = env.render(mode="rgb_array", height=100, width=100)
@@ -160,10 +166,15 @@ def process_inputs(o, g, o_mean, o_std, g_mean, g_std, args):
 if __name__ == '__main__':
     paths = {
         'FetchReach-v1': {
-            'sym_state': './all_weigths/FetchReach-v1/',
-            'asym_goal_outside_image': './randomized_server_weights/asym_goal_outside_image/FetchReach-v1/',
-            'asym_goal_in_image': 'sym_server_weights/distill/',
-            'sym_image': ''
+            'old_robo': {
+                'sym_state': './all_weigths/FetchReach-v1/',
+                'asym_goal_outside_image': './randomized_server_weights/asym_goal_outside_image/FetchReach-v1',
+                'asym_goal_in_image': 'sym_server_weights/distill/',
+                'sym_image': ''
+            },
+            'xarm': {
+                'asym_goal_in_image': './sym_server_weights/saved_models/asym_goal_in_image/FetchReach-v1'
+            }
         },
         'FetchPush-v1': {
             'sym_state': '',
@@ -179,7 +190,9 @@ if __name__ == '__main__':
     }
     args = get_args()
     args.env_name = 'FetchReach-v1'
-    args.task = 'asym_goal_outside_image'
+    args.task = 'asym_goal_in_image'
     # args.task = 'sym_state'
-    _eval_agent(args, paths)
+    # env = gym.make(args.env_name)
+    env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    _eval_agent(args, paths, env)
   
