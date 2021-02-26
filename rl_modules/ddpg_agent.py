@@ -36,15 +36,21 @@ def load_backbone_weights_and_freeze(network, weights_path):
     actor_state_dict = network['actor_net']
     keys_to_remove = ['']
 
-def randomize_camera(viewer):
-    viewer.cam.distance = random.randrange(1,3)
-    viewer.cam.azimuth = random.randint(160,190)
-    viewer.cam.elevation = random.randint(-45,-25)
+# def randomize_camera(viewer):
 
+#     viewer.cam.distance = random.randrange(1,3)
+#     viewer.cam.azimuth = random.randint(160,190)
+#     viewer.cam.elevation = random.randint(-45,-25)
+
+def randomize_camera(viewer):
+    viewer.cam.distance = 1.2 + np.random.uniform(-0.05, 0.05)
+    viewer.cam.azimuth = 180 + np.random.uniform(-1, 1)
+    viewer.cam.elevation = -25 + np.random.uniform(1, 2)
 
 def randomize_textures(modder, sim):
     for name in sim.model.geom_names:
         modder.rand_all(name)
+
 
 @benchmark
 def show_video(img):
@@ -376,10 +382,12 @@ class ddpg_agent(Agent):
                     if self.args.randomize:
                         # randomize viewer params for current episode
                         randomize_textures(self.modder, self.env.sim)
+                        randomize_camera(self.viewer)
 
 
                     for t in range(self.env_params['max_timesteps']): # 50
                         # show_video(observation['observation_image'])
+                        # randomize_camera(self.viewer)
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)

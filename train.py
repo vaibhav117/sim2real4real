@@ -6,6 +6,7 @@ from rl_modules.ddpg_agent import ddpg_agent
 import random
 import torch
 from mpi4py import MPI
+from env.load_xarm7 import ReachXarm
 
 """
 train the agent, the MPI part code is copy from openai baselines(https://github.com/openai/baselines/blob/master/baselines/her)
@@ -25,6 +26,9 @@ def get_env_params(env):
 def launch(args):
     # create the ddpg_agent
     env = gym.make(args.env_name)
+    # print(env._max_episode_steps)
+    # exit()
+    env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
     # set random seeds for reproduce
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
