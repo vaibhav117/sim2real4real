@@ -171,7 +171,7 @@ def eval_agent(env, env_params, net, args):
     return global_success_rate / MPI.COMM_WORLD.Get_size()
 
 def load_teacher_student(args):
-    env = gym.make('FetchPush-v1')
+    env = gym.make('FetchPickAndPlace-v1')
 
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
@@ -191,8 +191,8 @@ def load_teacher_student(args):
     env_params["load_saved"] = False
 
     # load teacher
-    # teacher_path = 'saved_models/sym_state/FetchPush-v1/model.pt'
-    teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
+    teacher_path = 'saved_models/sym_state/FetchPickAndPlace-v1/model.pt'
+    #teacher_path = 'sym_server_weights/sym_state/FetchPush-v1/model.pt'
     obj = torch.load(teacher_path, map_location=lambda storage, loc: storage)
 
     # init teacher
@@ -234,7 +234,7 @@ def load_teacher_student(args):
         if ep < 25:
             # sample expert to aid exploration
             return 0.7
-        elif ep < 75:
+        elif ep < 40:
             # make policy better
             return 0.5
         else:
@@ -298,7 +298,7 @@ def load_teacher_student(args):
             
         succ_rate = eval_agent(env, env_params, student_network, args)
         reward_plots.append(succ_rate)
-        save_path = "saved_models/distill/image_only/"
+        save_path = "saved_models/distill/image_only/fetch_pick_and_place/"
         if MPI.COMM_WORLD.Get_rank() == 0:
             try:
                 os.makedirs(save_path)

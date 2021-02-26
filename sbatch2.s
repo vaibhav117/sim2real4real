@@ -3,7 +3,7 @@
 #SBATCH --job-name=classification
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=30:00:00
+#SBATCH --time=40:00:00
 #SBATCH --constraint=pascal|turing|volta
 #SBATCH --gres=gpu:4
 #SBATCH --mem=50GB
