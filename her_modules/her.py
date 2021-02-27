@@ -18,9 +18,9 @@ def reset_goal_fetch_push(env, ach_goal):
     env.env.sim.forward()
     return env
 
-def render_image_without_fuss(env):
-    env.env._get_viewer("rgb_array").render(100, 100)
-    data = env.env._get_viewer("rgb_array").read_pixels(100, 100, depth=False)
+def render_image_without_fuss(env, height=300, width=300):
+    env.env._get_viewer("rgb_array").render(height, width)
+    data = env.env._get_viewer("rgb_array").read_pixels(height, width, depth=False)
     img = data[::-1, :, :]
     return img
 
@@ -145,6 +145,7 @@ class her_sampler_new:
 
                 img_obs_with_new_goal_curr.append(img_obs_curr)
                 img_obs_with_new_goal_next.append(img_obs_next)
+
             img_obs_with_new_goal_curr = np.array(img_obs_with_new_goal_curr)
             img_obs_with_new_goal_next = np.array(img_obs_with_new_goal_next)
             transitions['obs_imgs_with_goals'][her_indexes] = img_obs_with_new_goal_curr

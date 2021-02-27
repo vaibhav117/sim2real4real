@@ -128,7 +128,7 @@ the replay buffer here is basically from the openai baselines code
 
 """
 class new_replay_buffer:
-    def __init__(self, env_params, buffer_size, sample_func, image_based, sym_image):
+    def __init__(self, env_params, buffer_size, sample_func, image_based, sym_image, height=300, width=300):
         self.env_params = env_params
         self.T = env_params['max_timesteps']
         self.size = buffer_size // self.T
@@ -141,7 +141,7 @@ class new_replay_buffer:
         env_state_dim = 5
         # create the buffer to store info
         self.buffers = {'obs_states': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, 3], dtype=np.uint8),
+                        'obs_imgs': np.empty([self.size, self.T + 1, height, width, 3], dtype=np.uint8),
                         'ach_goal_states': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'goal_states': np.empty([self.size, self.T+1, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),

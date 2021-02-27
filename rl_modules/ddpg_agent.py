@@ -274,25 +274,25 @@ class ddpg_agent(Agent):
                     self.sym_image)
 
     @benchmark
-    def get_obs(self, task, action=None, step=False):
+    def get_obs(self, task, action=None, step=False, height=300, width=300):
         if step == False:
             obs = self.env.reset()
         else:
             obs, _, _, info = self.env.step(action)
         if task == "sym_state":
-            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
         elif task == "asym_goal_outside_image" or task == "asym_goal_outside_image_distill":
-            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
         elif task == "asym_goal_in_image":
-            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
         elif task == "sym_image":
-            obs["observation_image"] = self.env.render(mode="rgb_array", height=100, width=100)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
             return obs
 
