@@ -18,7 +18,7 @@ def reset_goal_fetch_push(env, ach_goal):
     env.env.sim.forward()
     return env
 
-def render_image_without_fuss(env, height=300, width=300):
+def render_image_without_fuss(env, height=100, width=100):
     env.env._get_viewer("rgb_array").render(height, width)
     data = env.env._get_viewer("rgb_array").read_pixels(height, width, depth=False)
     img = data[::-1, :, :]

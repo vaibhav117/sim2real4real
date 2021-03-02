@@ -110,7 +110,7 @@ class sym_image(nn.Module):
         self.bn4 = nn.BatchNorm2d(num_features=1)
         self.flatten = nn.Flatten()
         # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
-        self.fc1 = nn.Linear(1156, 256)
+        self.fc1 = nn.Linear(81, 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 256)
         self.action_out = nn.Linear(256, env_params['action'])

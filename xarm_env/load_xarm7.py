@@ -359,8 +359,9 @@ class FetchEnv(RobotEnv):
     def _render_callback(self):
         # Visualize target.
         sites_offset = (self.sim.data.site_xpos - self.sim.model.site_pos).copy()
+        # print(f"Sites Offset {sites_offset}")
         site_id = self.sim.model.site_name2id('target0')
-        self.sim.model.site_pos[site_id] = self.goal - sites_offset[1]
+        self.sim.model.site_pos[site_id] = self.goal - sites_offset[0]
         self.sim.forward()
 
     def _reset_sim(self):
@@ -579,12 +580,15 @@ def test_like_a_mf():
     modder = TextureModder(env.sim)
 
     while True:
-        env.reset()
+        obs = env.reset()
         # randomize_textures(env.sim, modder)
         for _ in range(50):
             action = env.action_space.sample()
             action = np.zeros_like(action)
-            env.step(action)
+            # goal = obs["desired_goal"]
+            # action[0:3] = goal
+            obs, rew, done, _ = env.step(action)
+
             env.render()
 
 

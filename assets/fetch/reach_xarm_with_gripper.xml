@@ -185,7 +185,8 @@
             </body>
         </body>
     
-    <site name="hand-goal-site" type="cylinder" pos="0 0.5 0" size="0.06 0.001" rgba="0.5 0.2 0.2 1"/>
+    <!-- <site name="hand-goal-site" type="cylinder" pos="0 0.5 0" size="0.06 0.001" rgba="0.5 0.2 0.2 1"/> -->
+
 		<body pos="1.3 0.75 0.2" name="table0">
 			<geom size="0.25 0.35 0.2" type="box" mass="2000" material="table_mat"></geom>
 		</body>

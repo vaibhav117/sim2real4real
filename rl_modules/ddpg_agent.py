@@ -274,7 +274,7 @@ class ddpg_agent(Agent):
                     self.sym_image)
 
     @benchmark
-    def get_obs(self, task, action=None, step=False, height=300, width=300):
+    def get_obs(self, task, action=None, step=False, height=100, width=100):
         if step == False:
             obs = self.env.reset()
         else:
@@ -697,14 +697,14 @@ class ddpg_agent(Agent):
 
     # do the evaluation
     @benchmark
-    def _eval_agent(self):
+    def _eval_agent(self, img_height=100, img_width=100):
         total_success_rate = []
         for _ in range(self.args.n_test_rollouts):
             per_success_rate = []
             observation = self.env.reset()
             obs = observation['observation']
             g = observation['desired_goal']
-            obs_img = self.env.render(mode="rgb_array", height=300, width=300)
+            obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
             observation['observation_image'] = obs_img
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
@@ -715,7 +715,7 @@ class ddpg_agent(Agent):
                         pi = self.get_policy("asym_goal_outside_image", observation)
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)
-                obs_img = self.env.render(mode="rgb_array", height=300, width=300)
+                obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
                 observation_new['observation_image'] = obs_img
                 observation = observation_new
                 per_success_rate.append(info['is_success'])
