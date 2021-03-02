@@ -439,7 +439,7 @@ class XarmFetchReachEnv(FetchEnv, utz.EzPickle):
         FetchEnv.__init__(
             self, xml_path, has_object=False, block_gripper=True, n_substeps=20,
             gripper_extra_height=0.2, target_in_the_air=True, target_offset=0.0,
-            obj_range=0.15, target_range=0.20, distance_threshold=0.05,
+            obj_range=0.15, target_range=0.10, distance_threshold=0.05,
             initial_qpos=initial_qpos, reward_type=reward_type)
         utz.EzPickle.__init__(self)
 

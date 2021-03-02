@@ -704,7 +704,7 @@ class ddpg_agent(Agent):
             observation = self.env.reset()
             obs = observation['observation']
             g = observation['desired_goal']
-            obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+            obs_img = self.env.render(mode="rgb_array", height=300, width=300)
             observation['observation_image'] = obs_img
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
@@ -715,7 +715,7 @@ class ddpg_agent(Agent):
                         pi = self.get_policy("asym_goal_outside_image", observation)
                     actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = self.env.step(actions)
-                obs_img = self.env.render(mode="rgb_array", height=100, width=100)
+                obs_img = self.env.render(mode="rgb_array", height=300, width=300)
                 observation_new['observation_image'] = obs_img
                 observation = observation_new
                 per_success_rate.append(info['is_success'])
