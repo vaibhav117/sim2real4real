@@ -122,8 +122,9 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
             modder = TextureModder(env.sim)
-            # randomize_textures(modder, env.sim)
-            # randomize_camera(viewer)
+            if args.randomize:
+                randomize_textures(modder, env.sim)
+                randomize_camera(viewer)
             for _ in range(env._max_episode_steps):
                 # randomize_camera(viewer)
                 # env.render()
