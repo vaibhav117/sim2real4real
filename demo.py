@@ -121,15 +121,19 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             g = observation['desired_goal']
             rollout = []
             obs_img = env.render(mode="rgb_array", height=100, width=100)
+            # print(obs_img.dtype)
+
+
             modder = TextureModder(env.sim)
             if args.randomize:
                 randomize_textures(modder, env.sim)
                 randomize_camera(viewer)
             for _ in range(env._max_episode_steps):
-                # randomize_camera(viewer)
+                randomize_camera(viewer)
                 # env.render()
                 rollout.append(obs_img)
                 #video.write(obs_img)
+                obs_img = cv2.cvtColor(obs_img, cv2.COLOR_BGR2RGB)
                 cv2.imshow('frame', cv2.resize(obs_img, (200,200)))
                 cv2.waitKey(0)
                 with torch.no_grad():

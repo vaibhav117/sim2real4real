@@ -581,7 +581,7 @@ def test_like_a_mf():
 
     while True:
         obs = env.reset()
-        # randomize_textures(env.sim, modder)
+        randomize_textures(env.sim, modder)
         for _ in range(50):
             action = env.action_space.sample()
             action = np.zeros_like(action)
