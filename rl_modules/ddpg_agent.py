@@ -169,7 +169,9 @@ class ddpg_agent(Agent):
             self.critic_network.cuda(MPI.COMM_WORLD.Get_rank())
             self.actor_target_network.cuda(MPI.COMM_WORLD.Get_rank())
             self.critic_target_network.cuda(MPI.COMM_WORLD.Get_rank())
-
+        
+        if self.args.randomize:
+            print("Domain Randomizer is ON")
         # create the optimizer
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
         self.critic_optim = torch.optim.Adam(self.critic_network.parameters(), lr=self.args.lr_critic)
