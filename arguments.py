@@ -10,7 +10,7 @@ def get_args():
     # the environment setting
     parser.add_argument('--env-name', type=str, default='FetchReach-v1', help='the environment name')
     parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
-    parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
+    parser.add_argument('--n-cycles', type=int, default=50, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=40, help='the times to update the network')
     parser.add_argument('--save-interval', type=int, default=5, help='the interval that save the trajectory')
     parser.add_argument('--seed', type=int, default=123, help='random seed')
@@ -40,6 +40,7 @@ def get_args():
     parser.add_argument('--task', type=str, default="asym_goal_outside_image", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--mode', type=str, default="reach", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--randomize', action='store_true', help='add domain randomization')
+    parser.add_argument('--depth', action='store_true', help='add domain randomization')
     args = parser.parse_args()
 
     return args
