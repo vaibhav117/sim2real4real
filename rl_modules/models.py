@@ -30,7 +30,11 @@ class asym_goal_outside_image(nn.Module):
     def __init__(self, env_params):
         super(asym_goal_outside_image, self).__init__()
         self.max_action = env_params['action_max']
-        self.cnn1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=2)
+        if env_params["depth"]:
+            in_chan = 4
+        else:
+            in_chan = 3
+        self.cnn1 = nn.Conv2d(in_channels=in_chan, out_channels=32, kernel_size=3, stride=2)
         self.bn1 = nn.BatchNorm2d(num_features=32)
         self.cnn2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2)
         self.bn2 = nn.BatchNorm2d(num_features=64)
@@ -100,7 +104,11 @@ class sym_image(nn.Module):
     def __init__(self, env_params):
         super(sym_image, self).__init__()
         self.max_action = env_params['action_max']
-        self.cnn1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=2)
+        if env_params["depth"]:
+            in_chan = 4
+        else:
+            in_chan = 3
+        self.cnn1 = nn.Conv2d(in_channels=in_chan, out_channels=32, kernel_size=3, stride=2)
         self.bn1 = nn.BatchNorm2d(num_features=32)
         self.cnn2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2)
         self.bn2 = nn.BatchNorm2d(num_features=64)
@@ -134,8 +142,12 @@ class sym_image(nn.Module):
 class sym_image_critic(nn.Module):
     def __init__(self, env_params):
         super(sym_image_critic, self).__init__()
+        if env_params["depth"]:
+            in_chan = 4
+        else:
+            in_chan = 3
         self.max_action = env_params['action_max']
-        self.cnn1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=2)
+        self.cnn1 = nn.Conv2d(in_channels=in_chan, out_channels=32, kernel_size=3, stride=2)
         self.bn1 = nn.BatchNorm2d(num_features=32)
         self.cnn2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2)
         self.bn2 = nn.BatchNorm2d(num_features=64)

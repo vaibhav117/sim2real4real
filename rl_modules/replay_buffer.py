@@ -10,6 +10,10 @@ class replay_buffer:
         self.env_params = env_params
         self.T = env_params['max_timesteps']
         self.size = buffer_size // self.T
+        if env_params["depth"]:
+            chan_size = 4
+        else:
+            chan_size = 3
         # memory management
         self.current_size = 0
         self.n_transitions_stored = 0
@@ -18,11 +22,11 @@ class replay_buffer:
         self.sym_image = sym_image
         # create the buffer to store info
         self.buffers = {'obs_states': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, 3], dtype=np.uint8),
+                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, chan_size], dtype=np.uint8),
                         'ach_goal_states': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'goal_states': np.empty([self.size, self.T+1, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),
-                        'her_obs_imgs': np.empty([self.size, self.T + 1, 100, 100, 3],  dtype=np.uint8),
+                        'her_obs_imgs': np.empty([self.size, self.T + 1, 100, 100, chan_size],  dtype=np.uint8),
                         }
         # thread lock
         self.lock = threading.Lock()
@@ -130,6 +134,10 @@ the replay buffer here is basically from the openai baselines code
 class new_replay_buffer:
     def __init__(self, env_params, buffer_size, sample_func, image_based, sym_image, height=100, width=100):
         self.env_params = env_params
+        if env_params["depth"]:
+            chan_size = 4
+        else:
+            chan_size = 3
         self.T = env_params['max_timesteps']
         self.size = buffer_size // self.T
         # memory management
@@ -141,7 +149,7 @@ class new_replay_buffer:
         env_state_dim = 5
         # create the buffer to store info
         self.buffers = {'obs_states': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_imgs': np.empty([self.size, self.T + 1, height, width, 3], dtype=np.uint8),
+                        'obs_imgs': np.empty([self.size, self.T + 1, height, width, chan_size], dtype=np.uint8),
                         'ach_goal_states': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'goal_states': np.empty([self.size, self.T+1, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),
