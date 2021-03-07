@@ -381,17 +381,17 @@ class ddpg_agent(Agent):
                     g = observation['desired_goal']
                     # start to collect samples
 
-                    # if self.args.randomize:
-                    #     # randomize viewer params for current episode
-                    #     randomize_textures(self.modder, self.env.sim)
-                    #     randomize_camera(self.viewer)
+                    if self.args.randomize:
+                        #randomize viewer params for current episode
+                        randomize_textures(self.modder, self.env.sim)
+                        randomize_camera(self.viewer)
 
 
                     for t in range(self.env_params['max_timesteps']): # 50
                         # show_video(observation['observation_image'])
                         if self.args.randomize:
                             randomize_textures(self.modder, self.env.sim)
-                            randomize_camera(self.viewer)
+                        #    randomize_camera(self.viewer)
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
