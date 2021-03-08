@@ -386,7 +386,7 @@ class ddpg_agent(Agent):
                     #     randomize_textures(self.modder, self.env.sim)
                     #     randomize_camera(self.viewer)
 
-
+                    s = time.time()
                     for t in range(self.env_params['max_timesteps']): # 50
                         # show_video(observation['observation_image'])
                         if self.args.randomize:
@@ -422,6 +422,10 @@ class ddpg_agent(Agent):
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
+
+                e = time.time()
+
+                print(f"TIme per cycle is {e - s}")
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
