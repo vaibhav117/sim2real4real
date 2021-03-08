@@ -141,6 +141,7 @@ class ddpg_agent(Agent):
         print("Model being saved at {}".format(final_model_path))
         env_params["model_path"] = final_model_path # TODO: fix bad practice
         env_params["load_saved"] = self.args.loadsaved
+        env_params["depth"] = False
         self.env_params = env_params
 
         # TODO: remove
