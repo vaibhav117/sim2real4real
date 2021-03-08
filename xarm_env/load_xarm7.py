@@ -117,16 +117,12 @@ class RobotEnv(gym.GoalEnv):
             self.viewer = None
             self._viewers = {}
 
-    def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE, depth=False):
+    def render(self, mode='human', width=DEFAULT_SIZE, height=DEFAULT_SIZE):
         self._render_callback()
         if mode == 'rgb_array':
             self._get_viewer(mode).render(width, height)
             # window size used for old mujoco-py:
-            if depth == False:
-                data = self._get_viewer(mode).read_pixels(width, height, depth=depth)
-            else:
-                data, dep = self._get_viewer(mode).read_pixels(width, height, depth=depth)
-                return data[::-1, :, :], dep[::-1, :]
+            data = self._get_viewer(mode).read_pixels(width, height, depth=False)
             # original image is upside-down, so flip it
             return data[::-1, :, :]
         elif mode == 'human':
@@ -216,7 +212,6 @@ class FetchEnv(RobotEnv):
         distance_threshold, initial_qpos, reward_type,
     ):
         """Initializes a new Fetch environment.
-
         Args:
             model_path (string): path to the environments XML file
             n_substeps (int): number of substeps the simulation runs on every call to step
@@ -419,8 +414,7 @@ class FetchEnv(RobotEnv):
 
         # Extract information for sampling goals.
         self.initial_gripper_xpos = self.sim.data.get_site_xpos('ee').copy()
-        # print(f"Initial gripper position {self.initial_gripper_xpos}")
-        # exit()
+        
         
         if self.has_object:
             self.height_offset = self.sim.data.get_site_xpos('object0')[2]
@@ -428,8 +422,8 @@ class FetchEnv(RobotEnv):
         self.sim.forward()
 
 
-    def render(self, mode='human', width=500, height=500, depth=False):
-        return super(FetchEnv, self).render(mode, width, height, depth=depth)
+    def render(self, mode='human', width=500, height=500):
+        return super(FetchEnv, self).render(mode, width, height)
 
 
 from gym import utils as utz
@@ -539,8 +533,8 @@ class ReachXarm:
     def reset(self):
         return self.env.reset()
     
-    def render(self, mode="human", width=500, height=500, depth=False):
-        return self.env.render(mode, width, height, depth=depth)
+    def render(self, mode="human", width=500, height=500):
+        return self.env.render(mode, width, height)
     
     def step(self, action):
         return self.env.step(action)
@@ -576,7 +570,7 @@ def test_like_a_mf():
     gripper_model = './assets/final/xarm7_with_gripper.xml'
     reach_gripper_model = './assets/fetch/reach_gripper.xml'
     reach_combined = './assets/fetch/reach_combined.xml'
-    reach_combined_gripper = 'assets/fetch/reach_xarm_with_gripper.xml'
+    reach_combined_gripper = '.././assets/fetch/reach_xarm_with_gripper.xml'
 
 
     env = XarmFetchReachEnv(xml_path=reach_combined_gripper)
@@ -590,11 +584,10 @@ def test_like_a_mf():
         for _ in range(50):
             action = env.action_space.sample()
             action = np.zeros_like(action)
-            print(action.shape)
-            action = np.asarray([-0.30, 0.45, -0.06, 1])
             # goal = obs["desired_goal"]
             # action[0:3] = goal
             obs, rew, done, _ = env.step(action)
+
             env.render()
 
 
