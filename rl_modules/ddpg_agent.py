@@ -142,7 +142,6 @@ class ddpg_agent(Agent):
         env_params["model_path"] = final_model_path # TODO: fix bad practice
         env_params["load_saved"] = self.args.loadsaved
         self.env_params = env_params
-        self.env_params["depth"] = args.depth
 
         # TODO: remove
         self.image_based = True
@@ -276,62 +275,27 @@ class ddpg_agent(Agent):
                     self.image_based,
                     self.sym_image)
 
-    def create_rgbd(self, rgb, depth):
-        rgb = (rgb - rgb.mean()) / rgb.std()
-        depth = depth[:, :, np.newaxis]
-        # print(rgb.mean(), depth.mean())
-        rgbd = np.concatenate((rgb, depth), axis=2)
-        return rgbd
-
     @benchmark
-    def get_obs(self, task, action=None, step=False, height=100, width=100, info=False):
+    def get_obs(self, task, action=None, step=False, height=100, width=100):
         if step == False:
             obs = self.env.reset()
         else:
-            obs, _, _, infor = self.env.step(action)
+            obs, _, _, info = self.env.step(action)
         if task == "sym_state":
-            if self.args.depth:
-                col_image, depth_image = self.env.render(mode="rgb_array", height=height, width=width, depth=self.args.depth)
-                # concat depth and rgb together
-                obs["observation_image"] = self.create_rgbd(col_image, depth_image) # TODO
-            else:
-                obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
-            if info:
-                return obs, infor
             return obs
         elif task == "asym_goal_outside_image" or task == "asym_goal_outside_image_distill":
-            if self.args.depth:
-                col_image, depth_image = self.env.render(mode="rgb_array", height=height, width=width, depth=self.args.depth)
-                # concat depth and rgb together
-                obs["observation_image"] = self.create_rgbd(col_image, depth_image) # TODO
-            else:
-                obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
-            if info:
-                return obs, infor
             return obs
         elif task == "asym_goal_in_image":
-            if self.args.depth:
-                col_image, depth_image = self.env.render(mode="rgb_array", height=height, width=width, depth=self.args.depth)
-                # concat depth and rgb together
-                obs["observation_image"] = self.create_rgbd(col_image, depth_image) # TODO
-            else:
-                obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
-            if info:
-                return obs, infor
             return obs
         elif task == "sym_image":
-            if self.args.depth:
-                col_image, depth_image = self.env.render(mode="rgb_array", height=height, width=width, depth=self.args.depth)
-                # concat depth and rgb together
-                obs["observation_image"] = self.create_rgbd(col_image, depth_image) # TODO
-            else:
-                obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
+            obs["observation_image"] = self.env.render(mode="rgb_array", height=height, width=width)
             obs["env_state"] = self.env.env.sim.get_state()
-            if info:
-                return obs, infor
             return obs
 
     
@@ -396,7 +360,6 @@ class ddpg_agent(Agent):
     def learn(self):
         """
         train the network
-
         """
         # start to collect samples
         for epoch in range(self.args.n_epochs):
@@ -416,18 +379,18 @@ class ddpg_agent(Agent):
                     ag = observation['achieved_goal']
                     g = observation['desired_goal']
                     # start to collect samples
-                    
-                    if self.args.randomize:
-                        #randomize viewer params for current episode
-                        randomize_textures(self.modder, self.env.sim)
-                        randomize_camera(self.viewer)
+
+                    # if self.args.randomize:
+                    #     # randomize viewer params for current episode
+                    #     randomize_textures(self.modder, self.env.sim)
+                    #     randomize_camera(self.viewer)
 
                     s = time.time()
                     for t in range(self.env_params['max_timesteps']): # 50
                         # show_video(observation['observation_image'])
                         if self.args.randomize:
                             randomize_textures(self.modder, self.env.sim)
-                        #    randomize_camera(self.viewer)
+                            randomize_camera(self.viewer)
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
@@ -460,7 +423,8 @@ class ddpg_agent(Agent):
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
 
                 e = time.time()
-                print(f"Time per cycle is {e - s}")
+
+                print(f"TIme per cycle is {e - s}")
             # start to do the evaluation
             success_rate = self._eval_agent()
             if MPI.COMM_WORLD.Get_rank() == 0:
@@ -747,13 +711,8 @@ class ddpg_agent(Agent):
             observation = self.env.reset()
             obs = observation['observation']
             g = observation['desired_goal']
-
-            observation = self.get_obs(self.args.task)
-            # obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
-            # observation['observation_image'] = obs_img
-
-
-
+            obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
+            observation['observation_image'] = obs_img
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
                 with torch.no_grad():
@@ -762,12 +721,10 @@ class ddpg_agent(Agent):
                     else:
                         pi = self.get_policy("asym_goal_outside_image", observation)
                     actions = pi.detach().cpu().numpy().squeeze()
-
-                observation, info = self.get_obs(self.args.task, step=True, action=actions, info=True)
-                # observation_new, _, _, info = self.env.step(actions)
-                # obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
-                # observation_new['observation_image'] = obs_img
-                # observation = observation_new
+                observation_new, _, _, info = self.env.step(actions)
+                obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
+                observation_new['observation_image'] = obs_img
+                observation = observation_new
                 per_success_rate.append(info['is_success'])
             total_success_rate.append(per_success_rate)
         total_success_rate = np.array(total_success_rate)
