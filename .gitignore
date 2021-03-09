@@ -119,4 +119,5 @@ slurm*
 
 server_weights/
 
+trajs/
 #loss_plot.png

@@ -8,16 +8,23 @@ from mujoco_py.generated import const
 from rl_modules.ddpg_agent import randomize_textures
 from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
 from rl_modules.ddpg_agent import model_factory
+from rl_modules.ddpg_agent import show_video
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from xarm_env.load_xarm7 import ReachXarm
 # import open3d as o3d
 from open3d import *
-
+from depth_tricks import create_point_cloud
 
 import numpy as np
 import math
+
+
+
+def save_trajectory(rollouts, filename='trajs/traj1.pkl'):
+    print(f" Saving rollout to {filename}")
+    torch.save(rollouts, filename)
 
 def depth2pcd(depth):
     def remap(x, in_range_l, in_range_r, out_range_l, out_range_r):
@@ -70,15 +77,15 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         # load model
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
-        # self.viewer.cam.fixedcamid = 3
-        # self.viewer.cam.type = const.CAMERA_FIXED
         viewer.cam.distance = 1.2
+        # viewer.cam.distance = 1.5
         viewer.cam.azimuth = 180
-        viewer.cam.lookat[0] = 1.45
-        viewer.cam.lookat[1] = 0.75
-        viewer.cam.lookat[2] = 1.0
-        # 1 0.75 0.45
         viewer.cam.elevation = -25
+        # viewer.cam.elevation = 0
+        # viewer.cam.lookat[0] = 1.5
+        # viewer.cam.lookat[1] = 0.75
+        # viewer.cam.lookat[2] = 1.0
+        # 1 0.75 0.45
         env.env._viewers['rgb_array'] = viewer
 
 
@@ -86,6 +93,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         env_params = get_env_params(env)
         env_params["model_path"] = paths[args.env_name]['xarm'][args.task] # TODO: fix bad practice
         env_params["load_saved"] = args.loadsaved
+        env_params["depth"] = False
         
         loaded_model, _, _, _ = model_factory(args.task, env_params)
 
@@ -93,8 +101,6 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         if args.task != 'sym_state':
             obj = torch.load(model_path, map_location=lambda storage, loc: storage)
             loaded_model.load_state_dict(obj['actor_net'])
-            # plt.plot(obj["losses"])
-            # plt.show()
         else:
             o_mean, o_std, g_mean, g_std, actor_state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)
             loaded_model.load_state_dict(actor_state_dict)
@@ -113,7 +119,6 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             obs_img = obs_img.permute(0, 3, 1, 2)
             g = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
             g_norm = torch.tensor( g, dtype=torch.float32)
-            # g_norm = torch.tensor(g, dtype=torch.float32)
             if args.cuda:
                 obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
                 g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
@@ -148,116 +153,52 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             obs = observation['observation']
             g = observation['desired_goal']
             rollout = []
-            
-
-
             modder = TextureModder(env.sim)
             if args.randomize:
                 randomize_textures(modder, env.sim)
-                # randomize_camera(viewer)
-            
-            
-            # print(obs_img.dtype)
-
-            # points = depth2pcd(depth_image)
+                randomize_camera(viewer)
 
             for _ in range(env._max_episode_steps):
                 if args.randomize:
                     # randomize_camera(viewer)
                     randomize_textures(modder, env.sim)
                 obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
+
+                show_video(obs_img)
                 # env.render()
-                rollout.append(obs_img)
                 # obs_img = cv2.cvtColor(obs_img, cv2.COLOR_BGR2RGB)
-                col_im = cv2.resize(obs_img, (200,200))
-                obs_img2 = col_im.copy()
-                dep_im = cv2.resize(depth_image, (200,200))
-
-                import open3d as o3d
-                import matplotlib.pyplot as plt
-
-                # from open3d.core.geometry import Image
-                near = 0.1
-                far = 1
-
-                # extent = env.sim.model.stat.extent
-                # near = env.sim.model.vis.map.znear * extent
-                # far = env.sim.model.vis.map.zfar * extent
-
-                dep_im = near / (1 - dep_im * (1 - near / far))
-                dep_img = dep_im.copy()
-                # dep_im *= 1000
-
-                # print(dep_im)
-                plt.imshow(col_im)
-                plt.show()
-                col_im = o3d.cpu.pybind.geometry.Image(col_im)
-                # print(col_im)
-                dep_im = o3d.cpu.pybind.geometry.Image(dep_im)
-                # print(dep_im)
-                rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(col_im, dep_im, convert_rgb_to_intensity=False)
-
-                # print(rgbd_image.depth)
-                # plt.imshow(col_im)
-                # plt.show()
-                # print(rgbd_image)
-                # plt.imshow(col_im)
-                # plt.show()
-                # plt.title('Redwood grayscale image')
-                # plt.imshow(rgbd_image.color)
-                # plt.subplot(1, 2, 2)
-                # plt.title('Redwood depth image')
-                # plt.imshow(rgbd_image.depth)
-                # plt.show()
-                # exit()
+                # depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(dep_im, alpha=0.03), cv2.COLORMAP_JET
+                if args.depth:
+                    create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
                 
-                # from open3d.geometry import create_rgbd_image_from_color_and_depth
-                # create point cloud
-                width = 200
-                height = 200
-                fovy = env.sim.model.cam_fovy[-1]
-                f = (1./np.tan(np.deg2rad(fovy)/2)) * 200 / 2.0
-                # f = 0.5 * height / math.tan(fovy * math.pi / 360)
-                intrinsic = np.array(((f, 0, width / 2), (0, f, height / 2), (0, 0, 1)))
-                intrin = open3d.camera.PinholeCameraIntrinsic(width=200, height=200, fx=f, fy=f, cx=width / 2, cy=height/2)
-                # print(intrin.intrisic_matrix)
-
-                # exit()
-
-                pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrin)
-                print(type(pcd))
-
-
-                # print(open3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault.intrinsic)
-                pcd.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-                o3d.visualization.draw_geometries([pcd])
-                # continue
-                exit()
-
-
-
-
-                # depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(dep_im, alpha=0.03), cv2.COLORMAP_JET)
-                # cv2.imshow('frame', obs_img2)
-                # cv2.imshow('depth', dep_img)
-                # cv2.waitKey(0)
                 with torch.no_grad():
                     pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
                     actions = pi.detach().cpu().numpy().squeeze()
                 # print(f"Actions {actions}")
                 observation_new, _, _, info = env.step(actions)
+
+
+                rollout.append({
+                    'obs_img': obs_img,
+                    'depth_img': depth_image,
+                    'actions': actions
+                })
+
                 obs = observation_new['observation']
                 obs_img, depth_image= env.render(mode="rgb_array", height=100, width=100, depth=True)
                 g = observation_new['desired_goal']
                 per_success_rate.append(info['is_success'])
+
             total_success_rate.append(per_success_rate)
             rollouts.append(rollout)
-        #cv2.destroyAllWindows()
-        #video.release()
+            
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
+
+        if args.record:
+            # save trajectory
+            save_trajectory(rollouts)
         print(local_success_rate)
-        #global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
 
 
 
@@ -301,7 +242,7 @@ if __name__ == '__main__':
     }
     args = get_args()
     args.env_name = 'FetchReach-v1'
-    args.task = 'asym_goal_outside_image'
+    args.task = 'asym_goal_in_image'
     # args.task = 'sym_state'
     # env = gym.make(args.env_name)
     env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
