@@ -25,7 +25,6 @@ def randomize_textures(sim, modder):
         modder.rand_all(name)
 
 
-
 try:
     import mujoco_py
 except ImportError as e:
