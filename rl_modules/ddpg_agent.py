@@ -143,7 +143,7 @@ class ddpg_agent(Agent):
         env_params["load_saved"] = self.args.loadsaved
         self.env_params = env_params
         self.env_params["depth"] = args.depth
-
+        print(f"Using depth : {args.depth}")
         # TODO: remove
         self.image_based = True
         self.sym_image = True
@@ -277,7 +277,7 @@ class ddpg_agent(Agent):
                     self.sym_image)
 
     def create_rgbd(self, rgb, depth):
-        rgb = (rgb - rgb.mean()) / rgb.std()
+        #rgb = (rgb - rgb.mean()) / rgb.std()
         depth = depth[:, :, np.newaxis]
         # print(rgb.mean(), depth.mean())
         rgbd = np.concatenate((rgb, depth), axis=2)
