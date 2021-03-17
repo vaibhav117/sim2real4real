@@ -257,6 +257,10 @@ class FetchEnv(RobotEnv):
         else:
             return -d
 
+    def get_gripper_pos(self):
+        grip_pos = self.sim.data.get_site_xpos('ee')
+        return grip_pos
+
     # RobotEnv methods
     # ----------------------------
 
@@ -265,7 +269,7 @@ class FetchEnv(RobotEnv):
             # self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', 0.)
             # self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', 0.)
             ctrl_set_action(self.sim, 1)
-            for _ in range(10):
+            for _ in range(5):
                 self.sim.step()
             # self.sim.forward()
 
@@ -442,7 +446,7 @@ class XarmFetchReachEnv(FetchEnv, utz.EzPickle):
             'robot0:slide2': 0.0,
         }
         FetchEnv.__init__(
-            self, xml_path, has_object=False, block_gripper=True, n_substeps=20,
+            self, xml_path, has_object=False, block_gripper=True, n_substeps=10,
             gripper_extra_height=0.2, target_in_the_air=True, target_offset=0.0,
             obj_range=0.15, target_range=0.20, distance_threshold=0.05,
             initial_qpos=initial_qpos, reward_type=reward_type)
@@ -566,6 +570,22 @@ class ReachXarm:
         return self.env._max_episode_steps
     
 
+def check_distance():
+    reach_combined_gripper = 'assets/fetch/reach_xarm_with_gripper.xml'
+
+
+    env = XarmFetchReachEnv(xml_path=reach_combined_gripper)
+    obs = env.reset()
+
+    print(env.get_gripper_pos())
+    s = time.time()
+    for i in range(2):
+        action = np.asarray([1, 0, 0, 1])
+        env.step(action)
+        env.render()
+    e = time.time()
+    print(f"{e - s} seconds")
+    print(env.get_gripper_pos())
 
 
 def test_like_a_mf():
@@ -590,57 +610,12 @@ def test_like_a_mf():
             action = env.action_space.sample()
             action = np.zeros_like(action)
             print(action.shape)
-            # action = np.asarray([-0.30, 0.45, -0.06, 1])
+            action = np.asarray([0.01, 0.02, 0.03, 1])
             # goal = obs["desired_goal"]
             # action[0:3] = goal
             obs, rew, done, _ = env.step(action)
             env.render()
 
-
-
-    MODEL_XML_PATH = reach_env
-    model = mujoco_py.load_model_from_path(reach_combined_gripper)
-    sim = mujoco_py.MjSim(model, nsubsteps=20)
-    # viewer = mujoco_py.MjViewer(sim)
-
-
-    reset_mocap2body_xpos(sim)
-    reset_mocap_welds(sim) # Important
-    ctrl_set_action(sim, 1)
-    sim.forward()
-
-
-    for i in range(10):
-        sim.step()
-
-    # move gripper to target
-    action = np.asarray([[0.2, 0, 0.3, 0, 0, 0, 0]])
-    ctrl_set_action(sim, 1)
-    mocap_set_action(sim, action)
-    sim.forward()
-
-    # for i in range(50):
-    #     sim.step()
-
-    for i in range(100):
-        viewer.render()
-        sim.step()
-        # time.sleep(0.1)
-        # mocap_set_action(sim, action)
-        
-        # time.sleep(0.1)
-
-    action = np.asarray([[-0.2, 0.5, -0.1, 0, 0, 0, 0]])
-    ctrl_set_action(sim, 1)
-    mocap_set_action(sim, action)
-    sim.forward()
-
-    for i in range(100):
-        viewer.render()
-        sim.step()
-        # time.sleep(0.1)
-        # mocap_set_action(sim, action)
-        
-        # time.sleep(0.1)
         
 # test_like_a_mf()
+# check_distance()
