@@ -811,8 +811,15 @@ class ddpg_agent(Agent):
             # obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
             # observation['observation_image'] = obs_img
             record_buffer = []
+            if self.args.randomize:
+                #randomize viewer params for current episode
+                randomize_textures(self.modder, self.env.sim)
+                randomize_camera(self.viewer)
+                
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
+                if self.args.randomize:
+                    randomize_textures(self.modder, self.env.sim)
                 with torch.no_grad():
                     if self.args.task != "asym_goal_outside_image_distill":
                         pi = self.get_policy(self.args.task, observation)
