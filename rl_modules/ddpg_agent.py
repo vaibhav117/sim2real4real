@@ -398,9 +398,51 @@ class ddpg_agent(Agent):
         train the network
 
         """
+
+        if self.args.fillbuffer:
+            trajectories = []
+            for i in range(40): # TODO: change this to a controllable arg
+                trajectory = Trajectory()
+                observation = self.get_obs(self.args.task)
+                obs = observation['observation']
+                obs_img = observation['observation_image']
+
+                ag = observation['achieved_goal']
+                g = observation['desired_goal']
+
+                if self.args.randomize:
+                    #randomize viewer params for current episode
+                    randomize_textures(self.modder, self.env.sim)
+                    randomize_camera(self.viewer)
+                for t in range(self.env_params['max_timesteps']): # 50
+                    
+                    if self.args.randomize:
+                        randomize_textures(self.modder, self.env.sim)
+                    #    randomize_camera(self.viewer)
+                    
+                    random_actions = np.random.uniform(low=-self.env_params['action_max'], high=self.env_params['action_max'], \
+                                                size=self.env_params['action'])
+                    observation["action"] = random_actions
+
+                    # append rollouts
+                    trajectory.add(observation)
+
+                    # feed the actions into the environment
+                    observation_new = self.get_obs(self.args.task, action=random_actions, step=True)
+                    # reassign observation
+                    observation = observation_new
+                    observation["action"] = None # TODO: ?? what is this about ?
+                    
+                trajectory.add(observation)
+                # save trajectory
+                trajectories.append(trajectory)
+
+            self.normalize_states_and_store(trajectories, self.args.task)    
+            print(f"Filled replay buffer with {50*40} state transitions")
+
         # start to collect samples
         for epoch in range(self.args.n_epochs):
-            for _ in range(self.args.n_cycles):
+            for i in range(self.args.n_cycles):
                 # start_of_lel = time.time()
                 trajectories = []
                 for _ in range(self.args.num_rollouts_per_mpi):
@@ -424,7 +466,8 @@ class ddpg_agent(Agent):
 
 
                     for t in range(self.env_params['max_timesteps']): # 50
-                        # show_video(observation['observation_image'])
+                        if self.args.show:
+                            show_video(observation['observation_image'])
                         if self.args.randomize:
                             randomize_textures(self.modder, self.env.sim)
                         #    randomize_camera(self.viewer)
@@ -448,13 +491,25 @@ class ddpg_agent(Agent):
 
                     # save trajectory
                     trajectories.append(trajectory)
-                
-                self.normalize_states_and_store(trajectories, self.args.task)
 
-                for _ in range(self.args.n_batches):
-                    self._update_network()
+                self.normalize_states_and_store(trajectories, self.args.task)
+                crit_losses = []
+                act_losses = []
+                for j in range(self.args.n_batches):
+                    act_loss , crit_loss = self._update_network()
+                    act_losses.append(act_loss)
+                    crit_losses.append(crit_loss)
                     #if MPI.COMM_WORLD.Get_rank() == 0:
                     #    benchmark.plot()
+                if self.args.plottrain:
+                    plt.plot(act_losses, color='red', label='actor')
+                    plt.plot(crit_losses, color='blue', label='critic')
+                    plt.legend()
+                    # TODO: save fig 
+                    plt.savefig(f'BATCHES:_{self.args.n_batches}_update_plot_epoch:{epoch}_Cycle:{i}.png')
+                    plt.clf()
+
+
                 # soft update
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
@@ -734,6 +789,9 @@ class ddpg_agent(Agent):
         actor_loss, critic_loss = self._get_losses(self.args.task, transitions)
         # start to update the network
         self._gradient_step(actor_loss, critic_loss)
+
+
+        return actor_loss.item(), critic_loss.item()
 
     # do the evaluation
     @benchmark

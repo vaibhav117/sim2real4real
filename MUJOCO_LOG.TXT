@@ -10,3 +10,6 @@ ERROR: Fixed camera id is outside valid range
 Mon Sep  7 16:20:30 2020
 ERROR: Fixed camera id is outside valid range
 
+Tue Mar 16 21:00:09 2021
+ERROR: Expired activation key
+
