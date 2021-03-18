@@ -269,7 +269,7 @@ class FetchEnv(RobotEnv):
             # self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', 0.)
             # self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', 0.)
             ctrl_set_action(self.sim, 1)
-            for _ in range(5):
+            for _ in range(10):
                 self.sim.step()
             # self.sim.forward()
 
