@@ -419,7 +419,7 @@ class ddpg_agent(Agent):
                     if self.args.randomize:
                         randomize_textures(self.modder, self.env.sim)
                     #    randomize_camera(self.viewer)
-                    
+
                     random_actions = np.random.uniform(low=-self.env_params['action_max'], high=self.env_params['action_max'], \
                                                 size=self.env_params['action'])
                     observation["action"] = random_actions
@@ -514,7 +514,10 @@ class ddpg_agent(Agent):
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
             # start to do the evaluation
-            success_rate = self._eval_agent()
+            if epoch%5 == 0:
+                success_rate = self._eval_agent(record=self.args.record, ep=epoch)
+            else:
+                success_rate = self._eval_agent(record=False)
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
                 self.mean_rewards.append(success_rate)
@@ -795,8 +798,9 @@ class ddpg_agent(Agent):
 
     # do the evaluation
     @benchmark
-    def _eval_agent(self, img_height=100, img_width=100):
+    def _eval_agent(self, img_height=100, img_width=100, record=False, ep=None):
         total_success_rate = []
+        recordings=[]
         for _ in range(self.args.n_test_rollouts):
             per_success_rate = []
             observation = self.env.reset()
@@ -806,9 +810,7 @@ class ddpg_agent(Agent):
             observation = self.get_obs(self.args.task)
             # obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
             # observation['observation_image'] = obs_img
-
-
-
+            record_buffer = []
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
                 with torch.no_grad():
@@ -817,14 +819,18 @@ class ddpg_agent(Agent):
                     else:
                         pi = self.get_policy("asym_goal_outside_image", observation)
                     actions = pi.detach().cpu().numpy().squeeze()
-
+                if record:
+                    record_buffer.append(observation)
                 observation, info = self.get_obs(self.args.task, step=True, action=actions, info=True)
-                # observation_new, _, _, info = self.env.step(actions)
-                # obs_img = self.env.render(mode="rgb_array", height=img_height, width=img_width)
-                # observation_new['observation_image'] = obs_img
-                # observation = observation_new
+                
                 per_success_rate.append(info['is_success'])
             total_success_rate.append(per_success_rate)
+            if record:
+                recordings.append(record_buffer)
+        
+        # save recording
+        if record:
+            torch.save(recordings, f'recording_{ep}.pt')
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)

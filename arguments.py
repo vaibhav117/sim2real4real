@@ -41,7 +41,7 @@ def get_args():
     parser.add_argument('--mode', type=str, default="reach", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--randomize', action='store_true', help='add domain randomization')
     parser.add_argument('--depth', action='store_true', help='add domain randomization')
-    parser.add_argument('--record', action='store_true', help='add domain randomization')
+    parser.add_argument('--record', action='store_true', help='record policy after every 5th epoch')
     parser.add_argument('--show', action='store_true', help='show agent video')
     parser.add_argument('--plottrain', action='store_true', help='plot act, crit losses during training')
     parser.add_argument('--fillbuffer', action='store_true', help='plot act, crit losses during training')
