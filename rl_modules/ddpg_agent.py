@@ -279,6 +279,8 @@ class ddpg_agent(Agent):
     def create_rgbd(self, rgb, depth):
         #rgb = rgb / 255
         depth = depth[:, :, np.newaxis]
+        # add randomization
+        depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape)
         # print(rgb.mean(), depth.mean())
         rgbd = np.concatenate((rgb, depth), axis=2)
         return rgbd
@@ -815,7 +817,7 @@ class ddpg_agent(Agent):
                 #randomize viewer params for current episode
                 randomize_textures(self.modder, self.env.sim)
                 randomize_camera(self.viewer)
-                
+
             for _ in range(self.env_params['max_timesteps']):
                 # show_video(observation['observation_image'])
                 if self.args.randomize:
