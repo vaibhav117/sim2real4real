@@ -25,10 +25,10 @@ def get_env_params(env):
 
 def launch(args):
     # create the ddpg_agent
-    env = gym.make(args.env_name)
+    #env = gym.make(args.env_name)
     # print(env._max_episode_steps)
     # exit()
-    # env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
     # set random seeds for reproduce
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     random.seed(args.seed + MPI.COMM_WORLD.Get_rank())

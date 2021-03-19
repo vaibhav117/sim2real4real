@@ -277,7 +277,7 @@ class ddpg_agent(Agent):
                     self.sym_image)
 
     def create_rgbd(self, rgb, depth):
-        rgb = (rgb - rgb.mean()) / rgb.std()
+        #rgb = rgb / 255
         depth = depth[:, :, np.newaxis]
         # print(rgb.mean(), depth.mean())
         rgbd = np.concatenate((rgb, depth), axis=2)
