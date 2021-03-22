@@ -5,7 +5,7 @@ from rl_modules.ddpg_agent import show_video
 import cv2
 
 
-def create_point_cloud(col_img, dep_img, fovy=45, convert_img=True):
+def create_point_cloud(col_img, dep_img, fovy=45, convert_img=True, vis=False):
     if convert_img:
         col_img = cv2.cvtColor(col_img, cv2.COLOR_BGR2RGB)
     dep_img = dep_img.astype(np.float32)
@@ -33,7 +33,8 @@ def create_point_cloud(col_img, dep_img, fovy=45, convert_img=True):
     # create point cloud and display
     pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, camera_intrinsic)
     pcd.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-    # o3d.visualization.draw_geometries([pcd])
+    if vis:
+        o3d.visualization.draw_geometries([pcd])
 
     return pcd
 

@@ -37,9 +37,9 @@ def load_backbone_weights_and_freeze(network, weights_path):
     keys_to_remove = ['']
 
 def randomize_camera(viewer):
-    viewer.cam.distance = 1.2 + np.random.uniform(-0.05, 0.5)
+    viewer.cam.distance = 1.2 + np.random.uniform(-0.25, 0.1)
     viewer.cam.azimuth = 180 + np.random.uniform(-2, 2)
-    viewer.cam.elevation = -25 + np.random.uniform(1, 3)
+    viewer.cam.elevation = -11 + np.random.uniform(0, 2)
 
 def randomize_textures(modder, sim):
     for name in sim.model.geom_names:
@@ -270,12 +270,30 @@ class ddpg_agent(Agent):
                     self.image_based,
                     self.sym_image)
 
+    def use_real_depths_and_crop(self, rgb, depth):
+        def normalize_depth(img):
+            near = 0.021
+            far = 2.14
+            img = near / (1 - img * (1 - near / far))
+            return img*15.5
+        depth = normalize_depth(depth)
+        depth = cv2.resize(depth[10:80, 10:90], (100,100))
+        rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
+
+        # from depth_tricks import create_point_cloud
+        # create_point_cloud(rgb, depth, vis=True)
+
+        return rgb, depth[:, :, np.newaxis]
+
     def create_rgbd(self, rgb, depth):
         #rgb = rgb / 255
         depth = depth[:, :, np.newaxis]
         # add randomization
         depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape)
-        # print(rgb.mean(), depth.mean())
+
+        # use real depths
+        rgb, depth = self.use_real_depths_and_crop(rgb, depth)
+
         rgbd = np.concatenate((rgb, depth), axis=2)
         return rgbd
 
