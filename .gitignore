@@ -123,3 +123,7 @@ trajs/
 #loss_plot.png
 
 BATCHES*
+
+*.pkl
+
+*.json
