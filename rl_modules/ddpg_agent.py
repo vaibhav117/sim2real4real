@@ -36,12 +36,6 @@ def load_backbone_weights_and_freeze(network, weights_path):
     actor_state_dict = network['actor_net']
     keys_to_remove = ['']
 
-# def randomize_camera(viewer):
-
-#     viewer.cam.distance = random.randrange(1,3)
-#     viewer.cam.azimuth = random.randint(160,190)
-#     viewer.cam.elevation = random.randint(-45,-25)
-
 def randomize_camera(viewer):
     viewer.cam.distance = 1.2 + np.random.uniform(-0.05, 0.5)
     viewer.cam.azimuth = 180 + np.random.uniform(-2, 2)

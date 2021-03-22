@@ -408,7 +408,7 @@ class FetchEnv(RobotEnv):
         reset_mocap_welds(self.sim) # Important
         reset_mocap2body_xpos(self.sim)
         ctrl_set_action(self.sim, 1)
-        action = np.asarray([[0.3, 0, 0.3, 0, 0, 0, 0]])
+        action = np.asarray([[0.3, 0, 0.15, 0, 0, 0, 0]])
         mocap_set_action(self.sim, action)
         self.sim.forward()
 
@@ -610,7 +610,7 @@ def test_like_a_mf():
             action = env.action_space.sample()
             action = np.zeros_like(action)
             print(action.shape)
-            action = np.asarray([0.01, 0.02, 0.03, 1])
+            # action = np.asarray([0.01, 0.02, 0.03, 1])
             # goal = obs["desired_goal"]
             # action[0:3] = goal
             obs, rew, done, _ = env.step(action)
