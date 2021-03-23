@@ -37,9 +37,9 @@ def load_backbone_weights_and_freeze(network, weights_path):
     keys_to_remove = ['']
 
 def randomize_camera(viewer):
-    viewer.cam.distance = 1.2 + np.random.uniform(-0.25, 0.1)
+    viewer.cam.distance = 1.2 + np.random.uniform(-0.35, 0.3)
     viewer.cam.azimuth = 180 + np.random.uniform(-2, 2)
-    viewer.cam.elevation = -11 + np.random.uniform(0, 2)
+    viewer.cam.elevation = -11 + np.random.uniform(0, 3)
 
 def randomize_textures(modder, sim):
     for name in sim.model.geom_names:
@@ -214,7 +214,7 @@ class ddpg_agent(Agent):
         
         # self._eval_agent()
             
-    def save_models(self):
+    def save_models(self, best=False):
         save_dict = {
             'actor_net': self.actor_network.state_dict(),
             'critic_net': self.critic_network.state_dict(),
@@ -228,8 +228,10 @@ class ddpg_agent(Agent):
             'actor_losses': self.actor_loss,
             'critic_losses': self.critic_loss
         }
-
-        torch.save(save_dict, self.model_path + '/model.pt')
+        if best:
+            torch.save(save_dict, self.model_path + '/best_model.pt')
+        else:
+            torch.save(save_dict, self.model_path + '/model.pt')
 
     @benchmark
     def get_her_module(self, task):
@@ -277,19 +279,23 @@ class ddpg_agent(Agent):
             img = near / (1 - img * (1 - near / far))
             return img*15.5
         depth = normalize_depth(depth)
+        # get depth between 0 and 1
+        depth = (depth - 0.021) / (2.14 - 0.021)
         depth = cv2.resize(depth[10:80, 10:90], (100,100))
         rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
 
         # from depth_tricks import create_point_cloud
+        # print(rgb.dtype, depth.dtype)
         # create_point_cloud(rgb, depth, vis=True)
 
         return rgb, depth[:, :, np.newaxis]
 
     def create_rgbd(self, rgb, depth):
-        #rgb = rgb / 255
+        rgb = rgb.astype(np.float32)
+        rgb = rgb / 255 # normalize image data between 0 and 1
         depth = depth[:, :, np.newaxis]
         # add randomization
-        depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape)
+        depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
 
         # use real depths
         rgb, depth = self.use_real_depths_and_crop(rgb, depth)
@@ -534,6 +540,8 @@ class ddpg_agent(Agent):
                 success_rate = self._eval_agent(record=False)
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
+                if success_rate >= max(self.mean_rewards):
+                    self.save_models(best=True)
                 self.mean_rewards.append(success_rate)
                 self.save_models()
 
