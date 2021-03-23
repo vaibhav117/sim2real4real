@@ -19,6 +19,10 @@ from depth_tricks import create_point_cloud, create_point_cloud2
 import open3d as o3d
 import numpy as np
 import math
+import datetime
+from pathlib import Path
+import os
+import glob
 
 def get_real_pcd(filepath='xarm_env/obs_dump.pkl'):
     rolls = torch.load(filepath)
@@ -48,6 +52,36 @@ def get_real_pcd(filepath='xarm_env/obs_dump.pkl'):
         pcd2s.append(pcd2)
 
     vis.add_geometry(pcd2s[0])
+
+
+def get_most_recent_file(folder='./real_recordings/'):
+    list_of_files = glob.glob(os.path.join(folder, '*')) # * means all if need specific format then *.csv
+    latest_file = max(list_of_files, key=os.path.getctime)
+    print(latest_file)
+    return latest_file
+
+
+def retrieve_traj():
+    filepath = get_most_recent_file()
+    obj = torch.load(filepath)
+    return obj
+
+def get_real_pcd_from_recording():
+
+    obj = retrieve_traj()
+    goal = obj["goal"]
+    pcds = []
+    for obs in obj['traj']:
+        depth_obs = obs["depth_obs"]
+        img_obs = obs["img_obs"]
+        action = obs["action"]
+
+        pcd = create_point_cloud(img_obs, depth_obs)
+        return pcd
+        pcds.append({'pcd': pcd, 'goal': goal, 'action': action, 'depth_obs': depth_obs, 'img_obs': img_obs})
+
+    visualize(pcds)
+
 
 def get_real_depth(filepath='xarm_env/obs_dump.pkl'):
     rolls = torch.load(filepath)
@@ -94,10 +128,11 @@ def go_through_all_possible_randomizations(env, viewer, modder, test_elevation=T
     width = 100
     height = 100
     env.reset()
+    # env.render()
 
     randomize_textures(modder, env.sim)
 
-    distances = np.arange(1.15, 1.35, 0.05)
+    distances = np.arange(1.15, 2.9, 0.05)
     pcds = []
     if show_distances:
         for d in distances:
@@ -117,7 +152,7 @@ def go_through_all_possible_randomizations(env, viewer, modder, test_elevation=T
     # test elevation
     elevation = -25 + np.random.uniform(1, 3)
     elevations = np.arange(-11, -9.5, 0.5)
-    distances = np.arange(1.0, 1.35, 0.05)
+    distances = np.arange(1.0, 1.25, 0.05)
     azimuths = np.arange(178, 184, 1.0)
     viewer.cam.lookat[2] = 0.5
     pcds = []
@@ -126,9 +161,9 @@ def go_through_all_possible_randomizations(env, viewer, modder, test_elevation=T
         for ele in elevations:
             for a in azimuths:
                 for d in distances:
-                    viewer.cam.distance = d
-                    viewer.cam.elevation = ele
-                    viewer.cam.azimuth = a
+                    viewer.cam.distance = 1.20
+                    viewer.cam.elevation = -11
+                    viewer.cam.azimuth = 180
                     
                     viewer.render(width, height)
                     data, dep = viewer.read_pixels(width, height, depth=True)
@@ -157,9 +192,9 @@ def go_through_all_possible_randomizations(env, viewer, modder, test_elevation=T
                     real_depth_grey = (real_depth - mini) / (maxi - mini)
                     numpy_images = np.hstack((obs_img_cv, real_img_cv))
                     numpy_horizontal = np.hstack((real_depth_grey, depth_image_grey))
-                    cv2.imshow('all depths', numpy_horizontal)
-                    cv2.imshow('all images', numpy_images)
-                    cv2.waitKey(0)
+                    # cv2.imshow('all depths', numpy_horizontal)
+                    # cv2.imshow('all images', numpy_images)
+                    # cv2.waitKey(1)
                     description = f"Distance: {d}, Elevation: {ele}, Azimuth: {a}"
                     print(description)
                     pcds.append((description, create_point_cloud(obs_img, depth_image, fovy=45)))
@@ -181,6 +216,12 @@ def go_through_all_possible_randomizations(env, viewer, modder, test_elevation=T
         display_interactive_point_cloud(pcds)
     
 
+def normalize_depthz(img):
+    near = 0.021
+    far = 2.14
+    img = near / (1 - img * (1 - near / far))
+    return img*15.5
+
 def display_interactive_point_cloud(pcds):
     # hide under a flag
 
@@ -188,7 +229,8 @@ def display_interactive_point_cloud(pcds):
     vis = o3d.visualization.VisualizerWithKeyCallback()
     vis.create_window()
     i = 1
-    real_pcd = get_real_pcd()
+    # real_pcd = get_real_pcd()
+    real_pcd = get_real_pcd_from_recording()
 
     vis.add_geometry(pcds[0][1])
 
@@ -257,9 +299,9 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         # load model
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
-        viewer.cam.distance = 1.2
+        viewer.cam.distance = 1.20
         viewer.cam.azimuth = 180
-        viewer.cam.elevation = -25
+        viewer.cam.elevation = -11
 
         env.env._viewers['rgb_array'] = viewer
         modder = TextureModder(env.sim)
@@ -294,23 +336,44 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         total_success_rate = []
         rollouts = []
 
+        def use_real_depths_and_crop(rgb, depth):
+            def normalize_depth(img):
+                near = 0.021
+                far = 2.14
+                img = near / (1 - img * (1 - near / far))
+                return img*15.5
+            depth = normalize_depth(depth)
+            depth = cv2.resize(depth[10:80, 10:90], (100,100))
+            rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
+
+            # from depth_tricks import create_point_cloud
+            # create_point_cloud(rgb, depth, vis=True)
+
+            return rgb, depth[:, :, np.newaxis]
+
         def _preproc_inputs_image_goal(obs_img, g, depth=None):
             if args.depth:
                 # add depth observation
                 obs_img = obs_img.squeeze(0)
+                obs_img, depth = use_real_depths_and_crop(obs_img, depth)
                 obs_img = np.concatenate((obs_img, depth), axis=2)
                 obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
                 obs_img = obs_img.permute(0, 3, 1, 2)
             else:
                 obs_img = torch.tensor(obs_img, dtype=torch.float32)
                 obs_img = obs_img.permute(0, 3, 1, 2)
+            
+            print(f"Mean {obj['g_mean']} | STD: {obj['g_std']} | clip range {-args.clip_range}:{args.clip_range}")
+            print(f"Goal now {g}")
 
             g = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
-            g_norm = torch.tensor( g, dtype=torch.float32)
+            print(f"Goal after norm {g}")
+            g_norm = torch.tensor(g, dtype=torch.float32)
             # g_norm = torch.zeros((1, 3))
             if args.cuda:
                 obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
                 g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
+            print(f"Goal is {g_norm} | unnormalised {g}")
             return obs_img, g_norm
         
         def _prepoc_image(obs_img):
@@ -325,6 +388,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                 raise NotImplementedError
             if args.task == "asym_goal_outside_image":
                 o_tensor, g_tensor = _preproc_inputs_image_goal(obs_img, g, depth)
+                # g_tensor = torch.tensor(np.asarray([0.2, 0.2, 0.2])).view(1, -1).to(torch.float32)
                 pi = loaded_model(o_tensor, g_tensor)
                 return pi
             if args.task == "asym_goal_in_image":
@@ -334,6 +398,14 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                 o_tensor, _ = _preproc_inputs_image_goal(obs_img, g)
                 pi = loaded_model(o_tensor)
                 return pi
+        
+        def create_folder_and_save(obj, folder_name='rollout_records'):            
+            Path(folder_name).mkdir(parents=True, exist_ok=True)
+            timestamp =  str(datetime.datetime.now())
+            path_name = os.path.join(folder_name, timestamp)
+
+            torch.save(obj, path_name)
+            print(f"Trajectory saved to {path_name}")
 
         for _ in range(args.n_test_rollouts):
             per_success_rate = []
@@ -341,27 +413,36 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             obs = observation['observation']
             g = observation['desired_goal']
             rollout = []
+            all_info = []
             pcds = []
             
             if args.randomize:
                 randomize_textures(modder, env.sim)
-                randomize_camera(viewer)
-
-            for _ in range(env._max_episode_steps):
+                # randomize_camera(viewer)
+            max_steps = env._max_episode_steps
+            max_steps = 10
+            hard_coded_goal = np.asarray([1.63, 0.51, 0.33])
+            for _ in range(max_steps):
                 if args.randomize:
-                    randomize_camera(viewer)
+                    # randomize_camera(viewer)
                     randomize_textures(modder, env.sim)
                 obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
 
                 # show_video(obs_img)
-                pcds.append(create_point_cloud(obs_img, depth_image))
+                save_depth_image = normalize_depthz(depth_image)
+                save_obs_img, save_depth_image = use_real_depths_and_crop(obs_img, depth_image)
+                pcd = create_point_cloud(save_obs_img, save_depth_image)
+                pcds.append(pcd)
+                
                 # env.render()
                 # obs_img = cv2.cvtColor(obs_img, cv2.COLOR_BGR2RGB)
                 # depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(dep_im, alpha=0.03), cv2.COLORMAP_JET
                 if args.depth:
                     # create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
+                    g = hard_coded_goal
                     pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], depth=depth_image[:, :, np.newaxis])
                     actions = pi.detach().cpu().numpy().squeeze()
+                    print(f"Actions is {actions}")
                 else:
                     with torch.no_grad():
                         pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
@@ -370,18 +451,19 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
 
 
                 rollout.append({
-                    'obs_img': obs_img,
-                    'depth_img': depth_image,
-                    'actions': actions
+                    'obs_img': save_obs_img,
+                    'depth_img': save_depth_image,
+                    'actions': actions,
                 })
 
                 obs = observation_new['observation']
-                obs_img, depth_image= env.render(mode="rgb_array", height=100, width=100, depth=True)
+                obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
                 g = observation_new['desired_goal']
                 per_success_rate.append(info['is_success'])
 
             # hide under a flag
-
+            if args.record:
+                create_folder_and_save({'traj': rollout, 'goal': hard_coded_goal})
 
             vis = o3d.visualization.VisualizerWithKeyCallback()
             vis.create_window()
