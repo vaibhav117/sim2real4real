@@ -24,10 +24,11 @@ from rl_modules.utils import timeit
 from rl_modules.trajectory import Trajectory
 from rl_modules.base import Agent
 import random
-
+from rl_modules.utils import use_real_depths_and_crop
 from rl_modules.utils import Benchmark
 
 benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
+
 
 def load_backbone_weights_and_freeze(network, weights_path):
     '''
@@ -44,6 +45,7 @@ def randomize_camera(viewer):
 def randomize_textures(modder, sim):
     for name in sim.model.geom_names:
         modder.rand_all(name)
+
 
 
 @benchmark
@@ -129,6 +131,8 @@ class ddpg_agent(Agent):
         self.viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
         self.viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
         self.viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
+        self.viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
+        
         env.env._viewers['rgb_array'] = self.viewer
         
         final_model_path = os.path.join(self.args.save_dir, self.args.task, self.args.env_name, "model.pt")
@@ -249,7 +253,8 @@ class ddpg_agent(Agent):
                                 self.env.compute_reward,
                                 self.image_based,
                                 self.sym_image,
-                                self.args.mode)        
+                                self.args.mode,
+                                self.args.depth)        
 
     @benchmark
     def get_buffer(self, task):
@@ -272,23 +277,6 @@ class ddpg_agent(Agent):
                     self.image_based,
                     self.sym_image)
 
-    def use_real_depths_and_crop(self, rgb, depth):
-        def normalize_depth(img):
-            near = 0.021
-            far = 2.14
-            img = near / (1 - img * (1 - near / far))
-            return img*15.5
-        depth = normalize_depth(depth)
-        # get depth between 0 and 1
-        depth = (depth - 0.021) / (2.14 - 0.021)
-        depth = cv2.resize(depth[10:80, 10:90], (100,100))
-        rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
-
-        # from depth_tricks import create_point_cloud
-        # print(rgb.dtype, depth.dtype)
-        # create_point_cloud(rgb, depth, vis=True)
-
-        return rgb, depth[:, :, np.newaxis]
 
     def create_rgbd(self, rgb, depth):
         rgb = rgb.astype(np.float32)
@@ -298,8 +286,11 @@ class ddpg_agent(Agent):
         depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
 
         # use real depths
-        rgb, depth = self.use_real_depths_and_crop(rgb, depth)
-
+        rgb, depth = use_real_depths_and_crop(rgb, depth)
+        # plt.imshow(rgb)
+        # plt.show()
+        # plt.imshow(depth)
+        # plt.show()
         rgbd = np.concatenate((rgb, depth), axis=2)
         return rgbd
 

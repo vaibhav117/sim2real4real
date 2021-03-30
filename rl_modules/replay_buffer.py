@@ -22,7 +22,7 @@ class replay_buffer:
         self.sym_image = sym_image
         # create the buffer to store info
         self.buffers = {'obs_states': np.empty([self.size, self.T + 1, self.env_params['obs']]),
-                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, chan_size], dtype=np.uint8),
+                        'obs_imgs': np.empty([self.size, self.T + 1, 100, 100, chan_size], dtype=np.float32),
                         'ach_goal_states': np.empty([self.size, self.T + 1, self.env_params['goal']]),
                         'goal_states': np.empty([self.size, self.T+1, self.env_params['goal']]),
                         'actions': np.empty([self.size, self.T, self.env_params['action']]),

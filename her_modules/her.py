@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import cv2 
 import gym
+from rl_modules.utils import use_real_depths_and_crop
+from mujoco_py.modder import TextureModder
 
 def reset_goal_fetch_reach(env, ach_goal):
     sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
@@ -18,29 +20,63 @@ def reset_goal_fetch_push(env, ach_goal):
     env.env.sim.forward()
     return env
 
-def render_image_without_fuss(env, height=100, width=100):
+def reset_goal_fetch_pick_place(env, ach_goal):
+    # ach_goal = ach_goal - [0.02,0.02,0]
+    # sites_offset = (env.env.sim.data.site_xpos - env.env.sim.model.site_pos).copy()
+    # site_id = env.env.sim.model.site_name2id('target0')
+    # env.env.sim.model.site_pos[site_id] = ach_goal - sites_offset[0]
+    # env.env.sim.forward()
+    return env
+
+def randomize_textures(modder, sim):
+    for name in sim.model.geom_names:
+        modder.rand_all(name)
+
+
+def render_image_without_fuss(env, height=100, width=100, depth=True):
     env.env._get_viewer("rgb_array").render(height, width)
-    data = env.env._get_viewer("rgb_array").read_pixels(height, width, depth=False)
-    img = data[::-1, :, :]
-    return img
+    if depth:
+        modder = TextureModder(env.sim)
+        randomize_textures(modder, env.sim)
+        data, dep = env.env._get_viewer("rgb_array").read_pixels(height, width, depth=depth)
+        rgb, depth = data[::-1, :, :], dep[::-1, :]
+
+        # create rgbd
+        rgb, depth = use_real_depths_and_crop(rgb, depth)
+        
+        from depth_tricks import create_point_cloud
+        create_point_cloud(rgb, depth, vis=True)
+
+        # concatenate ze stuff
+        rgbd = np.concatenate((rgb, depth), axis=2)
+        return rgbd
+    else:
+        data = env.env._get_viewer("rgb_array").read_pixels(height, width, depth=depth)
+        img = data[::-1, :, :]
+        return img
 
 
-def get_img(env, s, ag, mode="push"):
+
+def get_img(env, s, ag, mode="push", depth=True):
     env.sim.set_state(s)
     if mode == 'reach':
         reset_goal_fetch_reach(env, ag)
     elif mode == 'push':
         reset_goal_fetch_push(env, ag)
+    elif mode == 'pick_place':
+        reset_goal_fetch_pick_place(env, ag)
 
-    curr_img = render_image_without_fuss(env)
+    curr_img = render_image_without_fuss(env, depth=depth)
     return curr_img
-
 
 def show_video(img1, img2):
     cv2.imshow('current frame', cv2.resize(img1, (200,200)))
     cv2.imshow('next frame', cv2.resize(img2, (200,200)))
     cv2.waitKey(0)
 
+def show_video1(img1):
+    cv2.imshow('img', cv2.resize(img1, (200,200)))
+    cv2.waitKey(0)
 
 class her_sampler:
     def __init__(self, replay_strategy, replay_k, reward_func=None, image_based=False, sym_image=False, mode=None):
@@ -89,8 +125,9 @@ class her_sampler:
 
 
 class her_sampler_new:
-    def __init__(self, replay_strategy, replay_k, env, reward_func=None, image_based=False, sym_image=False, mode='reach'):
+    def __init__(self, replay_strategy, replay_k, env, reward_func=None, image_based=False, sym_image=False, mode='reach', depth=True):
         self.replay_strategy = replay_strategy
+        self.depth = depth
         self.replay_k = replay_k
         self.image_based = image_based
         self.sym_image = sym_image
@@ -137,9 +174,9 @@ class her_sampler_new:
             img_obs_with_new_goal_curr = []
             img_obs_with_new_goal_next = []
             for s, n_s, ag, idx in zip(states, next_states, future_ag, her_indexes[0]):
-                img_obs_curr = get_img(self.env, s, ag, self.mode)
-                img_obs_next = get_img(self.env, n_s, ag, self.mode)
-                # show_video(img_obs_curr, img_obs_next)
+                img_obs_curr = get_img(self.env, s, ag, self.mode, depth=self.depth)
+                img_obs_next = get_img(self.env, n_s, ag, self.mode, depth=self.depth)
+                # show_video(img_obs_curr[:, :, :3], img_obs_curr[:, :, 3])
                 # plt.imshow(img_obs_curr)
                 # plt.show()
 

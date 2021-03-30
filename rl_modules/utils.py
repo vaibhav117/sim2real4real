@@ -1,6 +1,26 @@
 import matplotlib.pyplot as plt
 import time 
+import cv2
+import numpy as np
 
+def normalize_depth(img):
+    near = 0.021
+    far = 2.14
+    img = near / (1 - img * (1 - near / far))
+    return img*15.5
+
+def use_real_depths_and_crop(rgb, depth):
+    # TODO: add rgb normalization as well
+    depth = normalize_depth(depth)
+    # depth = (depth - 0.021) / (2.14 - 0.021)
+    
+    depth = cv2.resize(depth[10:80, 10:90], (100,100))
+    rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
+
+    # from depth_tricks import create_point_cloud
+    # create_point_cloud(rgb, depth, vis=True)
+
+    return rgb, depth[:, :, np.newaxis]
 
 class Benchmark:
 

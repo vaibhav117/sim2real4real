@@ -5,6 +5,33 @@ from rl_modules.ddpg_agent import show_video
 import cv2
 
 
+
+def display_interactive_point_cloud(pcds):
+    # hide under a flag
+
+    print("starting int")
+    vis = o3d.visualization.VisualizerWithKeyCallback()
+    vis.create_window()
+    i = 1
+
+    vis.add_geometry(pcds[0][1])
+
+
+    def update_pcd(vis):
+        nonlocal i, pcds
+        # global pcds
+        i = (i+1) % len(pcds)
+        vis.clear_geometries()
+        vis.add_geometry(pcds[i][1])
+        print(pcds[i][0])
+
+    vis.register_key_callback(ord("K"), update_pcd)
+    vis.run()
+    vis.destroy_window()
+
+    print("ending int")
+
+
 def create_point_cloud(col_img, dep_img, fovy=45, convert_img=True, vis=False):
     if convert_img:
         col_img = cv2.cvtColor(col_img, cv2.COLOR_BGR2RGB)
