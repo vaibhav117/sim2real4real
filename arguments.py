@@ -8,7 +8,7 @@ Here are the param for the training
 def get_args():
     parser = argparse.ArgumentParser()
     # the environment setting
-    parser.add_argument('--env-name', type=str, default='FetchReach-v1', help='the environment name')
+    parser.add_argument('--env-name', type=str, default='FetchPickAndPlace-v1', help='the environment name')
     parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
     parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=10, help='the times to update the network')

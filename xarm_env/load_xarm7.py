@@ -38,6 +38,13 @@ def robot_get_obs(sim):
     """
     if sim.data.qpos is not None and sim.model.joint_names:
         names = [n for n in sim.model.joint_names]
+        names.remove('object0:joint')
+        # for name in names:
+        #     if name != 'object0:joint':
+        #     b = sim.data.get_joint_qvel(name)
+        #     c = sim.data.get_joint_qpos(name)
+        #     print(name, b.dtype, c.dtype)
+        
         return (
             np.array([sim.data.get_joint_qpos(name) for name in names]),
             np.array([sim.data.get_joint_qvel(name) for name in names]),
@@ -269,9 +276,9 @@ class FetchEnv(RobotEnv):
             # self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', 0.)
             # self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', 0.)
             ctrl_set_action(self.sim, 1)
-            for _ in range(10):
-                self.sim.step()
-            # self.sim.forward()
+            # for _ in range(10):
+            #     self.sim.step()
+            self.sim.forward()
 
     def _set_action(self, action):
         assert action.shape == (4,)
@@ -294,7 +301,18 @@ class FetchEnv(RobotEnv):
         # action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
 
         # Apply action to simulation.
-        ctrl_set_action(self.sim, gripper_ctrl)
+        if gripper_ctrl <= 0.5:
+            # open gripper
+            ctrl_set_action(self.sim, -1)
+            # for i in range(50):
+            # self.sim.step()
+        elif gripper_ctrl > 0.5:
+            # close gripper
+            ctrl_set_action(self.sim, 1.0)
+            # for i in range(50):
+            # self.sim.step()
+
+
         one = np.asarray([0, 0, 0, 0])
         action_with_0_rotation = np.expand_dims(np.concatenate((pos_ctrl, one)), axis=0)
         mocap_set_action(self.sim, action_with_0_rotation)
@@ -314,14 +332,10 @@ class FetchEnv(RobotEnv):
             object_velr = self.sim.data.get_site_xvelr('object0') * dt
             # gripper state
             object_rel_pos = object_pos - grip_pos
-            object_velp -= grip_velp
+            # object_velp -= grip_velp
         else:
             object_pos = object_rot = object_velp = object_velr = object_rel_pos = np.zeros(0)
         
-        # joint names in gripper state:
-        # ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6', 'joint7', 
-        # 'drive_joint', 'left_finger_joint', 'left_inner_knuckle_joint', 
-        # 'right_outer_knuckle_joint', 'right_finger_joint', 'right_inner_knuckle_joint']
         
         # we need all gripper joint information, unlike old joint information that was only left and righ finger joint.
         gripper_state = robot_qpos[-6:]
@@ -333,18 +347,19 @@ class FetchEnv(RobotEnv):
             achieved_goal = grip_pos.copy()
         else:
             achieved_goal = np.squeeze(object_pos.copy())
-        # obs = np.concatenate([
-        #     grip_pos, object_pos.ravel(), object_rel_pos.ravel(), gripper_state, object_rot.ravel(),
-        #     object_velp.ravel(), object_velr.ravel(), grip_velp, gripper_vel,
-        # ])
+       
 
         # state for reach: grip_pos, gripper_state
         if not self.has_object:
             obs = np.concatenate([
                 grip_pos, gripper_state
             ])
+        else:
+            obs = np.concatenate([
+                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), gripper_state, object_rot.ravel()
+            ])
+            
 
-        # print(f"Achieved Goal is {achieved_goal}")
 
         return {
             'observation': obs.copy(),
@@ -373,12 +388,13 @@ class FetchEnv(RobotEnv):
 
     def _reset_sim(self):
         self.sim.set_state(self.initial_state)
-
+        self.sim.forward()
         # Randomize start position of object.
         if self.has_object:
             object_xpos = self.initial_gripper_xpos[:2]
-            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0.1:
+            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0:
                 object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
+                object_xpos = self.initial_gripper_xpos[:2] + np.asarray([0, 0])
             object_qpos = self.sim.data.get_joint_qpos('object0:joint')
             assert object_qpos.shape == (7,)
             object_qpos[:2] = object_xpos
@@ -394,6 +410,9 @@ class FetchEnv(RobotEnv):
             goal[2] = self.height_offset
             if self.target_in_the_air and self.np_random.uniform() < 0.5:
                 goal[2] += self.np_random.uniform(0, 0.45)
+            # # identify bounds
+            # goal = self.initial_gripper_xpos[:3] + np.asarray([-self.target_range, -self.target_range, -self.target_range])
+            # goal += self.target_offset
         else:
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(-self.target_range, self.target_range, size=3)
         # print(f"Goal is {goal}")
@@ -448,7 +467,7 @@ class XarmFetchReachEnv(FetchEnv, utz.EzPickle):
         FetchEnv.__init__(
             self, xml_path, has_object=False, block_gripper=True, n_substeps=10,
             gripper_extra_height=0.2, target_in_the_air=True, target_offset=0.0,
-            obj_range=0.15, target_range=0.20, distance_threshold=0.05,
+            obj_range=0.15, target_range=0.15, distance_threshold=0.05,
             initial_qpos=initial_qpos, reward_type=reward_type)
         utz.EzPickle.__init__(self)
 

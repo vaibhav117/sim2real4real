@@ -43,9 +43,10 @@ def render_image_without_fuss(env, height=100, width=100, depth=True):
 
         # create rgbd
         rgb, depth = use_real_depths_and_crop(rgb, depth)
-        
-        from depth_tricks import create_point_cloud
-        create_point_cloud(rgb, depth, vis=True)
+        # show_video1(rgb)
+
+        # from depth_tricks import create_point_cloud
+        # create_point_cloud(rgb, depth, vis=True)
 
         # concatenate ze stuff
         rgbd = np.concatenate((rgb, depth), axis=2)

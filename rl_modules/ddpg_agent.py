@@ -24,7 +24,7 @@ from rl_modules.utils import timeit
 from rl_modules.trajectory import Trajectory
 from rl_modules.base import Agent
 import random
-from rl_modules.utils import use_real_depths_and_crop
+from rl_modules.utils import use_real_depths_and_crop, show_video
 from rl_modules.utils import Benchmark
 
 benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
@@ -46,12 +46,6 @@ def randomize_textures(modder, sim):
     for name in sim.model.geom_names:
         modder.rand_all(name)
 
-
-
-@benchmark
-def show_video(img):
-    cv2.imshow('frame', cv2.resize(img, (200,200)))
-    cv2.waitKey()
 
 @benchmark
 def reset_goal_fetch_reach(env, ach_goal):
@@ -122,6 +116,7 @@ class ddpg_agent(Agent):
         self.env = env
         self.env_params = env_params
         sim = self.env.sim
+
         self.viewer = MjRenderContextOffscreen(sim, device_id=MPI.COMM_WORLD.Get_rank())
         # self.viewer.cam.fixedcamid = 3
         # self.viewer.cam.type = const.CAMERA_FIXED
@@ -287,6 +282,7 @@ class ddpg_agent(Agent):
 
         # use real depths
         rgb, depth = use_real_depths_and_crop(rgb, depth)
+        show_video(rgb)
         # plt.imshow(rgb)
         # plt.show()
         # plt.imshow(depth)
@@ -429,7 +425,7 @@ class ddpg_agent(Agent):
                     
                     if self.args.randomize:
                         randomize_textures(self.modder, self.env.sim)
-                    #    randomize_camera(self.viewer)
+                        randomize_camera(self.viewer)
 
                     random_actions = np.random.uniform(low=-self.env_params['action_max'], high=self.env_params['action_max'], \
                                                 size=self.env_params['action'])
@@ -485,6 +481,7 @@ class ddpg_agent(Agent):
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
+                            print(action)
                         
                         observation["action"] = action
 

@@ -7,6 +7,7 @@ import random
 import torch
 from mpi4py import MPI
 from xarm_env.load_xarm7 import ReachXarm
+from xarm_env.pick_and_place import PickAndPlaceXarm
 
 """
 train the agent, the MPI part code is copy from openai baselines(https://github.com/openai/baselines/blob/master/baselines/her)
@@ -23,12 +24,17 @@ def get_env_params(env):
     params['max_timesteps'] = env._max_episode_steps
     return params
 
+def get_env(task):
+    if task == 'FetchReach-v1':
+        return ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    elif task == 'FetchPickAndPlace-v1':
+        return PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 def launch(args):
     # create the ddpg_agent
     #env = gym.make(args.env_name)
     # print(env._max_episode_steps)
     # exit()
-    env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    env = get_env(args.env_name)
     # set random seeds for reproduce
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     random.seed(args.seed + MPI.COMM_WORLD.Get_rank())

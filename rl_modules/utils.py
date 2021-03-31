@@ -2,6 +2,17 @@ import matplotlib.pyplot as plt
 import time 
 import cv2
 import numpy as np
+from mpi4py import MPI
+from mujoco_py import MjRenderContextOffscreen
+from mujoco_py.modder import TextureModder
+
+def load_viewer(sim, device_id=MPI.COMM_WORLD.Get_rank()):
+    viewer = MjRenderContextOffscreen(sim, device_id=device_id)
+    viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
+    viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
+    viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
+    viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
+    return viewer
 
 def normalize_depth(img):
     near = 0.021
@@ -9,16 +20,17 @@ def normalize_depth(img):
     img = near / (1 - img * (1 - near / far))
     return img*15.5
 
-def use_real_depths_and_crop(rgb, depth):
+def use_real_depths_and_crop(rgb, depth, vis=False):
     # TODO: add rgb normalization as well
     depth = normalize_depth(depth)
     # depth = (depth - 0.021) / (2.14 - 0.021)
     
     depth = cv2.resize(depth[10:80, 10:90], (100,100))
     rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
-
-    # from depth_tricks import create_point_cloud
-    # create_point_cloud(rgb, depth, vis=True)
+    
+    if vis:
+        from depth_tricks import create_point_cloud
+        create_point_cloud(rgb, depth, vis=True)
 
     return rgb, depth[:, :, np.newaxis]
 
@@ -97,3 +109,16 @@ def timeit(fn):
 
         return output  # make sure that the decorator returns the output of fn
     return get_time 
+
+
+def show_video(img):
+    cv2.imshow('frame', cv2.resize(img, (200,200)))
+    cv2.waitKey()
+
+def get_texture_modder(env):
+    modder = TextureModder(env.sim)
+    return modder
+
+def randomize_textures(modder, env):
+    for name in env.sim.model.geom_names:
+        modder.rand_all(name)
