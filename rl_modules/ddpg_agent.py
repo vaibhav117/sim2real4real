@@ -481,7 +481,6 @@ class ddpg_agent(Agent):
                         with torch.no_grad():
                             pi = self.get_policy(self.args.task, observation)
                             action = self._select_actions(pi)
-                            print(action)
                         
                         observation["action"] = action
 
