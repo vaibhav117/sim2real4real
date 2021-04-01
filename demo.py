@@ -276,7 +276,7 @@ if __name__ == '__main__':
         }
     }
     args = get_args()
-    args.env_name = 'FetchReach-v1'
+    args.env_name = 'FetchPickAndPlace-v1'
     args.task = 'asym_goal_outside_image'
     # args.task = 'sym_state'
     # env = gym.make(args.env_name)

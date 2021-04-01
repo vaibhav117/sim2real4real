@@ -4,7 +4,7 @@ import numpy as np
 from depth_tricks import create_point_cloud, display_interactive_point_cloud
 
 
-path = './recording_xarm/recording_45.pt'
+path = './recording_xarm/recording_425.pt'
 depthz = True
 
 obj = torch.load(path)
