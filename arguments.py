@@ -9,7 +9,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     # the environment setting
     parser.add_argument('--env-name', type=str, default='FetchPickAndPlace-v1', help='the environment name')
-    parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
+    parser.add_argument('--n-epochs', type=int, default=500, help='the number of epochs to train the agent')
     parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=10, help='the times to update the network')
     parser.add_argument('--save-interval', type=int, default=5, help='the interval that save the trajectory')
@@ -37,7 +37,7 @@ def get_args():
     parser.add_argument('--sym-image', action='store_true', help='if use gpu do the acceleration')
     parser.add_argument('--image', action='store_true', help='if we want image based RL')
     parser.add_argument('--num-rollouts-per-mpi', type=int, default=2, help='the rollouts per mpi')
-    parser.add_argument('--task', type=str, default="asym_goal_outside_image", help='The task to train (sym/ asym) (image/state)')
+    parser.add_argument('--task', type=str, default="sym_state", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--mode', type=str, default="reach", help='The task to train (sym/ asym) (image/state)')
     parser.add_argument('--randomize', action='store_true', help='add domain randomization')
     parser.add_argument('--depth', action='store_true', help='add domain randomization')

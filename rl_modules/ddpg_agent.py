@@ -38,7 +38,7 @@ def load_backbone_weights_and_freeze(network, weights_path):
     keys_to_remove = ['']
 
 def randomize_camera(viewer):
-    viewer.cam.distance = 1.2 + np.random.uniform(-0.35, 0.3)
+    viewer.cam.distance = 1.25 + np.random.uniform(0, 0.1)
     viewer.cam.azimuth = 180 + np.random.uniform(-2, 2)
     viewer.cam.elevation = -11 + np.random.uniform(0, 3)
 
@@ -527,9 +527,10 @@ class ddpg_agent(Agent):
                 success_rate = self._eval_agent(record=False)
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
+                self.mean_rewards.append(success_rate)
                 if success_rate >= max(self.mean_rewards):
                     self.save_models(best=True)
-                self.mean_rewards.append(success_rate)
+                #self.mean_rewards.append(success_rate)
                 self.save_models()
 
 
