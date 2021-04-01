@@ -23,7 +23,7 @@ def normalize_depth(img):
 def use_real_depths_and_crop(rgb, depth, vis=False):
     # TODO: add rgb normalization as well
     depth = normalize_depth(depth)
-    # depth = (depth - 0.021) / (2.14 - 0.021)
+    depth = (depth - 0.021) / (2.14 - 0.021)
     
     depth = cv2.resize(depth[10:80, 10:90], (100,100))
     rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))

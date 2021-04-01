@@ -522,7 +522,7 @@ class ddpg_agent(Agent):
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
             # start to do the evaluation
-            if epoch%5 == 0:
+            if epoch%25 == 0:
                 success_rate = self._eval_agent(record=self.args.record, ep=epoch)
             else:
                 success_rate = self._eval_agent(record=False)
@@ -847,7 +847,7 @@ class ddpg_agent(Agent):
         
         # save recording
         if record:
-            torch.save(recordings, f'recording_{ep}.pt')
+            torch.save({ "traj": recordings }, f'recording_{ep}.pt')
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
