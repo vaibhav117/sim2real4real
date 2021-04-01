@@ -301,12 +301,12 @@ class FetchEnv(RobotEnv):
         # action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
 
         # Apply action to simulation.
-        if gripper_ctrl <= 0.5:
+        if gripper_ctrl <= 0:
             # open gripper
             ctrl_set_action(self.sim, -1)
             # for i in range(50):
             # self.sim.step()
-        elif gripper_ctrl > 0.5:
+        elif gripper_ctrl > 0:
             # close gripper
             ctrl_set_action(self.sim, 1.0)
             # for i in range(50):
@@ -392,13 +392,37 @@ class FetchEnv(RobotEnv):
         # Randomize start position of object.
         if self.has_object:
             object_xpos = self.initial_gripper_xpos[:2]
-            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0:
+            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0.01:
                 object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
-                object_xpos = self.initial_gripper_xpos[:2] + np.asarray([0, 0])
+                # object_xpos = self.initial_gripper_xpos[:2] + np.asarray([0, 0])
             object_qpos = self.sim.data.get_joint_qpos('object0:joint')
             assert object_qpos.shape == (7,)
             object_qpos[:2] = object_xpos
             self.sim.data.set_joint_qpos('object0:joint', object_qpos)
+            print(object_qpos[2])
+
+            # with 0.5 probability, set starting state of the robot gripper on top of the object
+            if np.random.uniform(0, 1) > 0.5:
+                act = np.zeros((4,))
+
+                pos_of_box = object_qpos[:3]
+
+                init_gripper_position = self.initial_gripper_xpos
+
+                act[:3] = pos_of_box - init_gripper_position
+                act[1] -= 0.03
+                # open gripper
+                act[3] = -1
+
+                print(f"Action: {act}")
+                self._set_action(act)
+
+                for i in range(80):
+                    self._set_action(act)
+                    self.sim.step()
+                    # self.render()
+
+
 
         self.sim.forward()
         return True

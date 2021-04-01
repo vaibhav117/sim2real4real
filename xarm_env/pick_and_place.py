@@ -84,12 +84,12 @@ def test():
     while True:
         print("Resetting..")
         obs = env.reset()
-        for i in range(10):
+        for i in range(50):
 
             # print(obs["desired_goal"], obs["achieved_goal"])
             env.render()
 
-        # continue
+        continue
 
 
         # # for i in range(30):
@@ -99,20 +99,20 @@ def test():
         # open gripper
         for i in range(10):
             env.render()
-            action = np.asarray([0, 0, 0, 0])
+            action = np.asarray([0, 0, 0, -1])
             env.step(action)
 
         # go slightly sideways
         for i in range(12):
             env.render()
-            action = np.asarray([0, -0.1, 0, 0.1])
+            action = np.asarray([0, -0.1, 0, -1])
             
             env.step(action)
 
         # go down
         for i in range(15):
             env.render()
-            action = np.asarray([0, 0, -0.5, 0.1])
+            action = np.asarray([0, 0, -0.5, -1])
             
             env.step(action)
         
@@ -130,20 +130,20 @@ def test():
         # go up
         for i in range(40):
             env.render()
-            action = np.asarray([0, 0, 0.5, 0.1])
+            action = np.asarray([0, 0, 0.5, 1])
             
             env.step(action)
 
         while True:
             for i in range(40):
                 env.render()
-                action = np.asarray([0, 0.5, 0, 0])
+                action = np.asarray([0, 0.5, 0,1])
                 
                 ob = env.step(action)
             
             for i in range(40):
                 env.render()
-                action = np.asarray([0, -0.5, 0, 0.1])
+                action = np.asarray([0, -0.5, 0, 1])
                 
                 env.step(action)
 
