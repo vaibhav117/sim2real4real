@@ -282,7 +282,7 @@ class ddpg_agent(Agent):
 
         # use real depths
         rgb, depth = use_real_depths_and_crop(rgb, depth)
-        show_video(rgb)
+        # show_video(rgb)
         # plt.imshow(rgb)
         # plt.show()
         # plt.imshow(depth)
