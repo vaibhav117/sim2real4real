@@ -280,7 +280,7 @@ class ddpg_agent(Agent):
             return img*15.5
         depth = normalize_depth(depth)
         # get depth between 0 and 1
-        depth = (depth - 0.021) / (2.14 - 0.021)
+        #depth = (depth - 0.021) / (2.14 - 0.021)
         depth = cv2.resize(depth[10:80, 10:90], (100,100))
         rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
 
@@ -292,10 +292,10 @@ class ddpg_agent(Agent):
 
     def create_rgbd(self, rgb, depth):
         rgb = rgb.astype(np.float32)
-        rgb = rgb / 255 # normalize image data between 0 and 1
+        #rgb = rgb / 255 # normalize image data between 0 and 1
         depth = depth[:, :, np.newaxis]
         # add randomization
-        depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
+        #depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
 
         # use real depths
         rgb, depth = self.use_real_depths_and_crop(rgb, depth)
@@ -534,15 +534,16 @@ class ddpg_agent(Agent):
                 self._soft_update_target_network(self.actor_target_network, self.actor_network)
                 self._soft_update_target_network(self.critic_target_network, self.critic_network)
             # start to do the evaluation
-            if epoch%5 == 0:
+            if epoch%25 == 0:
                 success_rate = self._eval_agent(record=self.args.record, ep=epoch)
             else:
                 success_rate = self._eval_agent(record=False)
             if MPI.COMM_WORLD.Get_rank() == 0:
                 print('[{}] epoch is: {}, eval success rate is: {:.3f}'.format(datetime.now(), epoch, success_rate))
+                self.mean_rewards.append(success_rate)
                 if success_rate >= max(self.mean_rewards):
                     self.save_models(best=True)
-                self.mean_rewards.append(success_rate)
+                #self.mean_rewards.append(success_rate)
                 self.save_models()
 
 
@@ -859,7 +860,7 @@ class ddpg_agent(Agent):
         
         # save recording
         if record:
-            torch.save(recordings, f'recording_{ep}.pt')
+            torch.save({ "traj": recordings }, f'recording_{ep}.pt')
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
