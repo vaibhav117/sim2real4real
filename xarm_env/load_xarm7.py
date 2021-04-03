@@ -38,17 +38,24 @@ def robot_get_obs(sim):
     """
     if sim.data.qpos is not None and sim.model.joint_names:
         names = [n for n in sim.model.joint_names]
-        names.remove('object0:joint')
-        # for name in names:
-        #     if name != 'object0:joint':
-        #     b = sim.data.get_joint_qvel(name)
-        #     c = sim.data.get_joint_qpos(name)
-        #     print(name, b.dtype, c.dtype)
+        qposes = []
+        qvels = []
+
+        for name in names:
+            if name == 'object0:joint':
+                b = sim.data.get_joint_qvel(name)
+                c = sim.data.get_joint_qpos(name)
+                qvels.append(b.ravel())
+                qposes.append(c.ravel())
+            else:
+                qvels.append(sim.data.get_joint_qvel(name).reshape(1))
+                qposes.append(sim.data.get_joint_qpos(name).reshape(1))
         
-        return (
-            np.array([sim.data.get_joint_qpos(name) for name in names]),
-            np.array([sim.data.get_joint_qvel(name) for name in names]),
-        )
+        qposes = np.concatenate(qposes)
+        qvels = np.concatenate(qvels)
+        
+        return qposes, qvels
+        
     return np.zeros(0), np.zeros(0)
 
 class RobotEnv(gym.GoalEnv):
@@ -399,7 +406,6 @@ class FetchEnv(RobotEnv):
             assert object_qpos.shape == (7,)
             object_qpos[:2] = object_xpos
             self.sim.data.set_joint_qpos('object0:joint', object_qpos)
-            print(object_qpos[2])
 
             # with 0.5 probability, set starting state of the robot gripper on top of the object
             if np.random.uniform(0, 1) > 0.5:
@@ -414,7 +420,6 @@ class FetchEnv(RobotEnv):
                 # open gripper
                 act[3] = -1
 
-                print(f"Action: {act}")
                 self._set_action(act)
 
                 for i in range(80):
