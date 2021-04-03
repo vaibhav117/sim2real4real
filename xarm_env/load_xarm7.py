@@ -345,10 +345,10 @@ class FetchEnv(RobotEnv):
         
         
         # we need all gripper joint information, unlike old joint information that was only left and righ finger joint.
-        gripper_state = robot_qpos[-6:]
+        gripper_state = robot_qpos[7:12]
 
         # TODO: no velocity information to be fed right now
-        gripper_vel = robot_qvel[-6:] * dt  # change to a scalar if the gripper is made symmetric
+        gripper_vel = robot_qvel[7:12] * dt  # change to a scalar if the gripper is made symmetric
 
         if not self.has_object:
             achieved_goal = grip_pos.copy()
@@ -363,7 +363,7 @@ class FetchEnv(RobotEnv):
             ])
         else:
             obs = np.concatenate([
-                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), gripper_state, object_rot.ravel()
+                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), object_rot.ravel(), object_velp.ravel(), object_velr.ravel(), gripper_state,
             ])
             
 
@@ -426,8 +426,6 @@ class FetchEnv(RobotEnv):
                     self._set_action(act)
                     self.sim.step()
                     # self.render()
-
-
 
         self.sim.forward()
         return True
