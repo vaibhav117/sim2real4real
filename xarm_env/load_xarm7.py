@@ -406,10 +406,6 @@ class FetchEnv(RobotEnv):
             assert object_qpos.shape == (7,)
             object_qpos[:2] = object_xpos
             self.sim.data.set_joint_qpos('object0:joint', object_qpos)
-<<<<<<< HEAD
-=======
-            #print(object_qpos[2])
->>>>>>> save rebase
 
             # with 0.5 probability, set starting state of the robot gripper on top of the object
             if np.random.uniform(0, 1) > 0.5:
@@ -424,10 +420,6 @@ class FetchEnv(RobotEnv):
                 # open gripper
                 act[3] = -1
 
-<<<<<<< HEAD
-=======
-                #print(f"Action: {act}")
->>>>>>> save rebase
                 self._set_action(act)
 
                 for i in range(80):
