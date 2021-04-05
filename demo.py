@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from xarm_env.load_xarm7 import ReachXarm
+from xarm_env.pick_and_place import PickAndPlaceXarm
 # import open3d as o3d
 from open3d import *
 from depth_tricks import create_point_cloud, create_point_cloud2
@@ -49,7 +50,6 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         # load model
         sim = env.sim
         viewer = MjRenderContextOffscreen(sim)
-        viewer.cam.lookat[2] = 0.5
         viewer.cam.distance = 1.20
         viewer.cam.azimuth = 180
         viewer.cam.elevation = -11
@@ -57,7 +57,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         env.env._viewers['rgb_array'] = viewer
         modder = TextureModder(env.sim)
 
-        pcds2 = go_through_all_possible_randomizations(env, viewer, modder)
+        # pcds2 = go_through_all_possible_randomizations(env, viewer, modder)
         # env.reset()
         # env params
         env_params = get_env_params(env)
@@ -73,9 +73,9 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             plt.show()
 
         # loading best model for Fetch Reach
-        model_path = paths[args.env_name]['xarm'][args.task] + '/best_model.pt'
+        model_path = paths[args.env_name]['xarm'][args.task] + '/model.pt'
 
-        if args.task != 'sym_state':
+        if True:
             obj = torch.load(model_path, map_location=lambda storage, loc: storage)
             loaded_model.load_state_dict(obj['actor_net'])
         else:
@@ -125,9 +125,22 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                 obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
             return obs_img
 
-        def get_policy(obs_img, g, depth=None):
+        # pre_process the inputs
+        def _preproc_inputs_state(obs, g):
+            print(obs.shape, obj['o_mean'].shape)
+            obs_norm = np.clip((obs - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range).reshape(1,-1)
+            g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+            # concatenate the stuffs
+            print(obs_norm.shape, g_norm.shape)
+            inputs = np.concatenate([obs_norm, g_norm], axis=1)
+            inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0)
+            return inputs
+
+        def get_policy(obs_img, g, obs=None, depth=None):
             if args.task == "sym_state":
-                raise NotImplementedError
+                inputs = _preproc_inputs_state(obs, g)
+                pi = loaded_model(inputs)
+                return pi
             if args.task == "asym_goal_outside_image":
                 o_tensor, g_tensor = _preproc_inputs_image_goal(obs_img, g, depth)
                 # g_tensor = torch.tensor(np.asarray([0.2, 0.2, 0.2])).view(1, -1).to(torch.float32)
@@ -163,7 +176,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             #     # randomize_camera(viewer)
             
             max_steps = env._max_episode_steps
-            max_steps = 50
+            max_steps = 100
             hard_coded_goal = np.asarray([1.63, 0.51, 0.33])
             for _ in range(max_steps):
                 viewer.cam.distance = 1.20
@@ -197,7 +210,10 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                     print(f"Actions is {actions}")
                 else:
                     with torch.no_grad():
-                        pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                        if args.task != 'sym_state':
+                            pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                        else:
+                            pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
                         actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = env.step(actions)
 
@@ -214,6 +230,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                 data, dep = viewer.read_pixels(100, 100, depth=True)
                 obs_img, depth_image = data[::-1, :, :], dep[::-1, :]
                 g = observation_new['desired_goal']
+                observation = observation_new
                 per_success_rate.append(info['is_success'])
 
             # hide under a flag
@@ -272,14 +289,20 @@ if __name__ == '__main__':
 
         },
         'FetchPickAndPlace-v1': {
-
+            'xarm': {
+                'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
+                'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
+            }
         }
     }
     args = get_args()
     args.env_name = 'FetchPickAndPlace-v1'
-    args.task = 'asym_goal_outside_image'
+    args.task = 'sym_state'
     # args.task = 'sym_state'
     # env = gym.make(args.env_name)
-    env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    if args.env_name =='FetchReach-v1':
+        env = ReachXarm(xml_path='./assets/fetch/reach_xarm_with_gripper.xml')
+    else:
+        env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
     _eval_agent(args, paths, env)
   

@@ -73,6 +73,15 @@ def check_distance():
     print(f"{e - s} seconds")
     print(env.get_gripper_pos())
 
+
+def show_big_ball(env, pos):
+    sites_offset = (env.sim.data.site_xpos - env.sim.model.site_pos).copy()
+    # print(f"Sites Offset {sites_offset}")
+    site_id = env.sim.model.site_name2id('target1')
+    env.sim.model.site_pos[site_id] = pos - sites_offset[0]
+    env.sim.forward()
+    # env.sim.step()
+
 def test():
     env = XarmFetchPickPlaceEnv()
 
@@ -84,12 +93,30 @@ def test():
     while True:
         print("Resetting..")
         obs = env.reset()
-        for i in range(50):
 
-            # print(obs["desired_goal"], obs["achieved_goal"])
+        import time
+        for i in range(80):
+            print(obs["observation"].shape)
+            desired_goal = obs["desired_goal"]  # place of goal
+            achieved_goal = obs["achieved_goal"] # actual goal
+
+            # show_big_ball(env, achieved_goal)
+
+            # action = obs["achieved_goal"] - desired_goal
+            # obs["observation"][6:9] = object relative pose, so action we should take to go to object
+
+            action = obs["observation"][6:9] - [0, 0.1, 0.1]
+
+            b = np.asarray((-1)).reshape((1))
+            print(b.shape)
+            action = np.concatenate((action, b), axis=0)
+            print(action.shape)
             env.render()
+            obs,  r, _, infor = env.step(action)
+            print(f"Reward is {r}")
+            
 
-        continue
+        # continue
 
 
         # # for i in range(30):
@@ -97,79 +124,120 @@ def test():
         #     env.render()
 
         # open gripper
-        for i in range(10):
-            env.render()
-            action = np.asarray([0, 0, 0, -1])
-            env.step(action)
+        # for i in range(10):
 
-        # go slightly sideways
-        for i in range(12):
-            env.render()
-            action = np.asarray([0, -0.1, 0, -1])
-            
-            env.step(action)
 
-        # go down
-        for i in range(15):
-            env.render()
-            action = np.asarray([0, 0, -0.5, -1])
+        #     desired_goal = obs["desired_goal"]  # place of goal
+        #     achieved_goal = obs["achieved_goal"] # actual goal
+
+        #     # show_big_ball(env, achieved_goal)
+        #     # show_big_ball(env, desired_goal)
+
+        #     env.render()
+        #     action = np.asarray([0, 0, 0, -1])
+        #     obs  ,_, _, infor = env.step(action)
+
+        # # go slightly sideways
+        # for i in range(12):
+
+        #     desired_goal = obs["desired_goal"]  # place of goal
+        #     achieved_goal = obs["achieved_goal"] # actual goal
+
+        #     # show_big_ball(env, achieved_goal)
+        #     # show_big_ball(env, desired_goal)
+
+        #     env.render()
+        #     action = np.asarray([0, -0.1, 0, -1])
             
-            env.step(action)
+        #     obs, _, _, infor = env.step(action)
+
+        # # go down
+        # for i in range(15):
+
+        #     desired_goal = obs["desired_goal"]  # place of goal
+        #     achieved_goal = obs["achieved_goal"] # actual goal
+
+        #     # show_big_ball(env, achieved_goal)
+        #     # show_big_ball(env, desired_goal)
+
+        #     env.render()
+        #     action = np.asarray([0, 0, -0.5, -1])
+            
+        #     obs, _, _, infor = env.step(action)
         
 
         # # close gripper
         for i in range(50):
+
+            desired_goal = obs["desired_goal"]  # place of goal
+            achieved_goal = obs["achieved_goal"] # actual goal
+
+            # show_big_ball(env, achieved_goal)
+            # show_big_ball(env, desired_goal)
+
             env.render()
             action = np.asarray([0, 0, 0, 1])
-            env.step(action)
+            obs, r, _, infor = env.step(action)
+
+            print(f"Reward is {r}")
+
         
+        ## go to goal
+        for i in range(100):
+
+            desired_goal = obs["desired_goal"]  # place of goal
+            achieved_goal = obs["achieved_goal"] # actual goal
+
+            # show_big_ball(env, achieved_goal)
+            # show_big_ball(env, desired_goal)
+            action = desired_goal - achieved_goal
+
+            env.render()
+            action = np.asarray([action[0]*10, action[1]*10, action[2]*10, 1])
+            obs, r, _, infor = env.step(action)
+
+            print(f"Reward is {r}")
+
         # for i in range(50):
         #     action = np.asarray([0, 0, 0, 0.1])
         #     env.render()
         
-        # go up
-        for i in range(40):
-            env.render()
-            action = np.asarray([0, 0, 0.5, 1])
-            
-            env.step(action)
+        # # go up
+        # for i in range(40):
 
-        while True:
-            for i in range(40):
-                env.render()
-                action = np.asarray([0, 0.5, 0,1])
-                
-                ob = env.step(action)
-            
-            for i in range(40):
-                env.render()
-                action = np.asarray([0, -0.5, 0, 1])
-                
-                env.step(action)
+        #     desired_goal = obs["desired_goal"]  # place of goal
+        #     achieved_goal = obs["achieved_goal"] # actual goal
 
-        
-        for i in range(50):
-            action = np.asarray([0, 0, 0, 0.1])
-            env.render()
-        
-        
-        # # go back up
-        # for i in range(20):
+        #     # show_big_ball(env, achieved_goal)
+
         #     env.render()
-        #     action = np.asarray([0, 0, 0.5, 0.1])
-        #     env.step(action)
-        
-
+        #     action = np.asarray([0, 0, 0.5, 1])
+            
+        #     obs, _, _, infor = env.step(action)
 
         # while True:
-        #     env.render()
-        #     action = np.asarray([0, 0, 0, 1])
-        #     env.step(action)
-            
+        #     for i in range(40):
 
-        # rgb, dep = env.render(mode="rgb_array", height=100, width=100, depth=True)
-        # rgb, dep = use_real_depths_and_crop(rgb, dep)
-        # show_video(rgb)
+        #         desired_goal = obs["desired_goal"]  # place of goal
+        #         achieved_goal = obs["achieved_goal"] # actual goal
+
+        #         show_big_ball(env, achieved_goal)
+
+        #         env.render()
+        #         action = np.asarray([0, 0.5, 0,1])
+                
+        #         obs, _, _, infor = env.step(action)
+            
+        #     for i in range(40):
+        #         desired_goal = obs["desired_goal"]  # place of goal
+        #         achieved_goal = obs["achieved_goal"] # actual goal
+
+        #         show_big_ball(env, achieved_goal)
+
+        #         env.render()
+        #         action = np.asarray([0, -0.5, 0, 1])
+        #         obs, _, _, infor = env.step(action)
+        #     break
         
 
 # test()

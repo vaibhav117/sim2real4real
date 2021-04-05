@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument('--show', action='store_true', help='show agent video')
     parser.add_argument('--plottrain', action='store_true', help='plot act, crit losses during training')
     parser.add_argument('--fillbuffer', action='store_true', help='plot act, crit losses during training')
-    
+    parser.add_argument('--i', type=int, default=20, help='the recording id to be played back')
     args = parser.parse_args()
 
     return args

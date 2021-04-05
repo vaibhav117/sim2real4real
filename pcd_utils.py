@@ -57,7 +57,7 @@ def get_real_pcd_from_recording(all=False):
         depth_obs = obs["depth_obs"]
         img_obs = obs["img_obs"]
         action = obs["action"]
-
+        depth_obs = (depth_obs - 0.021) / (2.14 - 0.021)
         pcd = create_point_cloud(img_obs, depth_obs)
         if not all:
             return pcd
@@ -148,7 +148,7 @@ def display_interactive_point_cloud(pcds):
         vis.clear_geometries()
         vis.add_geometry(pcds[i][1])
         print(pcds[i][0])
-        vis.add_geometry(real_pcd)
+        # vis.add_geometry(real_pcd)
 
     vis.register_key_callback(ord("K"), update_pcd)
     vis.run()

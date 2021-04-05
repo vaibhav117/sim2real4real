@@ -2,9 +2,12 @@ from rl_modules.ddpg_agent import show_video
 import torch 
 import numpy as np
 from depth_tricks import create_point_cloud, display_interactive_point_cloud
+from arguments import get_args
+
+args = get_args()
 
 
-path = './recording_xarm/recording_425.pt'
+path = f'./recording_xarm/recording_{args.i}.pt'
 depthz = True
 
 obj = torch.load(path)
