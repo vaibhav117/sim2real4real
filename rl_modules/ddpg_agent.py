@@ -26,6 +26,7 @@ from rl_modules.base import Agent
 import random
 from rl_modules.utils import use_real_depths_and_crop, show_video
 from rl_modules.utils import Benchmark
+import pickle
 
 benchmark = Benchmark() # TODO: hack to meaure time, make it cleaner
 
@@ -57,8 +58,8 @@ def reset_goal_fetch_reach(env, ach_goal):
 
 @benchmark
 def render_image_without_fuss(env):
-    env.env._get_viewer("rgb_array").render(100, 100)
-    data = env.env._get_viewer("rgb_array").read_pixels(100, 100, depth=False)
+    env.env._get_viewer("rgb_array").render(250, 250)
+    data = env.env._get_viewer("rgb_array").read_pixels(250, 250, depth=False)
     img = data[::-1, :, :]
     return img
 
@@ -72,8 +73,9 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
     critic_network = critic_fn(env_params)
     
     if env_params["load_saved"] == True:
-        print("Loading the actor/critic model from {}".format(env_params["model_path"]))
-        obj = torch.load(env_params["model_path"])
+        model_path = 'saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1/best_model.pt'
+        print("Loading the actor/critic model from {}".format(model_path))
+        obj = torch.load(model_path)
         actor_network.load_state_dict(obj["actor_net"])
         critic_network.load_state_dict(obj["critic_net"])
     
@@ -112,6 +114,7 @@ class ddpg_agent(Agent):
     def __init__(self, args, env, env_params):
 
         super().__init__()
+        torch.backends.cudnn.benchmark = False
         self.args = args
         self.env = env
         self.env_params = env_params
@@ -127,7 +130,8 @@ class ddpg_agent(Agent):
         self.viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
         self.viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
         self.viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
-        
+        temp = torch.randn((1,25,25))
+        temp = temp.cuda(MPI.COMM_WORLD.Get_rank())
         env.env._viewers['rgb_array'] = self.viewer
         
         final_model_path = os.path.join(self.args.save_dir, self.args.task, self.args.env_name, "model.pt")
@@ -148,12 +152,14 @@ class ddpg_agent(Agent):
             # get state based nets and load the weights
             env_params["load_saved"] = False
             self.teacher_actor_network, _, self.teacher_critic_network, _ = model_factory('sym_state', env_params)
-            model_path = 'sym_server_weights/sym_state/' + args.env_name + '/model.pt'
+            #model_path = 'sym_server_weights/sym_state/' + args.env_name + '/model.pt'
+            model_path = 'saved_models/sym_state/FetchPickAndPlace-v1/best_model.pt'
             obj = torch.load(model_path, map_location=torch.device('cpu'))
-            self.teacher_actor_network.load_state_dict(obj["actor_net"])
-            self.teacher_critic_network.load_state_dict(obj["critic_net"])
-            # self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
-            # self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
+            if self.args.cuda:
+                self.teacher_actor_network.load_state_dict(obj["actor_net"])
+                self.teacher_critic_network.load_state_dict(obj["critic_net"])
+                self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
+                self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
             print(f"Loaded the teacher networks, distillation init..")
         
         # if use gpu
@@ -180,8 +186,9 @@ class ddpg_agent(Agent):
         self.g_norm = normalizer(size=env_params['goal'], default_clip_range=self.args.clip_range)
         
         if self.args.loadsaved:
-            print("Loading optim state dict and means/std from {}".format(env_params["model_path"]))
-            obj = torch.load(env_params["model_path"])   
+            model_path = 'saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1/best_model.pt'
+            print("Loading optim state dict and means/std from {}".format(model_path))
+            obj = torch.load(model_path)   
             self.actor_optim.load_state_dict(obj["actor_optim"])
             self.critic_optim.load_state_dict(obj["critic_optim"])
             self.o_norm.mean = obj['o_mean']
@@ -210,8 +217,10 @@ class ddpg_agent(Agent):
         
         if self.args.randomize:
             self.modder = TextureModder(self.env.sim)
-        
-        # self._eval_agent()
+
+        temp = torch.randn((1,25,25))
+        temp = temp.cuda(MPI.COMM_WORLD.Get_rank()) 
+        #self._eval_agent()
             
     def save_models(self, best=False):
         save_dict = {
@@ -282,7 +291,7 @@ class ddpg_agent(Agent):
 
         # use real depths
         rgb, depth = use_real_depths_and_crop(rgb, depth)
-        show_video(rgb)
+        #show_video(rgb)
         # plt.imshow(rgb)
         # plt.show()
         # plt.imshow(depth)
@@ -291,7 +300,7 @@ class ddpg_agent(Agent):
         return rgbd
 
     @benchmark
-    def get_obs(self, task, action=None, step=False, height=100, width=100, info=False):
+    def get_obs(self, task, action=None, step=False, height=250, width=250, info=False):
         if step == False:
             obs = self.env.reset()
         else:
@@ -495,6 +504,7 @@ class ddpg_agent(Agent):
 
                     # add final obs to trajectory
                     trajectory.add(observation)
+                    torch.cuda.empty_cache()
 
                     # save trajectory
                     trajectories.append(trajectory)
@@ -808,7 +818,7 @@ class ddpg_agent(Agent):
 
     # do the evaluation
     @benchmark
-    def _eval_agent(self, img_height=100, img_width=100, record=False, ep=None):
+    def _eval_agent(self, img_height=250, img_width=250, record=False, ep=None):
         total_success_rate = []
         recordings=[]
         for _ in range(self.args.n_test_rollouts):
@@ -847,7 +857,7 @@ class ddpg_agent(Agent):
         
         # save recording
         if record:
-            torch.save({ "traj": recordings }, f'recording_{ep}.pt')
+            pickle.dump({"traj": recordings}, open(f'recording.pt', 'wb'))
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)

@@ -6,7 +6,7 @@
 #SBATCH --time=40:00:00
 #SBATCH --constraint=pascal|turing|volta
 #SBATCH --gres=gpu:4
-#SBATCH --mem=50GB
+#SBATCH --mem=100GB
 
 . ~/.bashrc
 #cd /scratch/$USER/rl/sim2real4real/

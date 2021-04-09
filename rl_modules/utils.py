@@ -20,13 +20,13 @@ def normalize_depth(img):
     img = near / (1 - img * (1 - near / far))
     return img*15.5
 
-def use_real_depths_and_crop(rgb, depth, vis=False):
+def use_real_depths_and_crop(rgb, depth, height=250, width=250, vis=False):
     # TODO: add rgb normalization as well
     depth = normalize_depth(depth)
     depth = (depth - 0.021) / (2.14 - 0.021)
     
-    depth = cv2.resize(depth[10:80, 10:90], (100,100))
-    rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
+    depth = cv2.resize(depth[25:200, 25:225], (height, width))
+    rgb = cv2.resize(rgb[25:200, 25:225, :], (height, width))
     
     if vis:
         from depth_tricks import create_point_cloud
