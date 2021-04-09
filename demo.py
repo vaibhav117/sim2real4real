@@ -69,11 +69,15 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
 
         def load_plot(file_path):
             obj = torch.load(file_path, map_location=torch.device('cpu'))
-            plt.plot(obj["reward_plots"])
+            rew_asym = obj["reward_plots"]
+            two = len(obj['actor_losses']) / len(obj['reward_plots'])
+            plt.plot(np.arange(len(rew_asym))*two*4, rew_asym)
             plt.show()
 
         # loading best model for Fetch Reach
         model_path = paths[args.env_name]['xarm'][args.task] + '/model.pt'
+
+        load_plot(model_path)
 
         if True:
             obj = torch.load(model_path, map_location=lambda storage, loc: storage)

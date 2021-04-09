@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 from rl_modules.replay_buffer import replay_buffer, new_replay_buffer
 from rl_modules.image_only_replay_buffer import image_replay_buffer, state_replay_buffer
-from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic
+from rl_modules.models import actor, critic, asym_goal_outside_image, sym_image, sym_image_critic, image_encoder_net
 from mpi_utils.normalizer import normalizer
 from her_modules.her import her_sampler, her_sampler_new
 from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
@@ -91,6 +91,13 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
 
     return actor_network, actor_target_network, critic_network, critic_target_network
 
+
+def get_image_encoder(network, env_params):
+    net = network(env_params)
+    sync_networks(net)
+    return net
+
+
 @benchmark
 def model_factory(task, env_params) -> [nn.Module, nn.Module]:
     """
@@ -104,6 +111,8 @@ def model_factory(task, env_params) -> [nn.Module, nn.Module]:
         return get_actor_critic_and_target_nets(sym_image, critic, env_params)
     elif task == "sym_image":
         return get_actor_critic_and_target_nets(sym_image, sym_image_critic, env_params)
+    elif task == 'image_encoder':
+        return get_image_encoder(image_encoder_net, env_params)
 
 """
 ddpg with HER (MPI-version)
@@ -152,8 +161,9 @@ class ddpg_agent(Agent):
             obj = torch.load(model_path, map_location=torch.device('cpu'))
             self.teacher_actor_network.load_state_dict(obj["actor_net"])
             self.teacher_critic_network.load_state_dict(obj["critic_net"])
-            # self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
-            # self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
+            if self.args.cuda:
+                self.teacher_actor_network.cuda(MPI.COMM_WORLD.Get_rank())
+                self.teacher_critic_network.cuda(MPI.COMM_WORLD.Get_rank())
             print(f"Loaded the teacher networks, distillation init..")
         
         # if use gpu

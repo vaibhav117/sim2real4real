@@ -34,8 +34,8 @@ def get_real_pcd(filepath='xarm_env/obs_dump.pkl'):
         orig_sim_dep = sim_dep_obs.copy()
         orig_real_dep = orig_depth.copy()
 
-        # show_video(orig_depth)
-        # show_video(robo_img_obs)
+        show_video(orig_depth)
+        show_video(robo_img_obs)
 
         pcd1 = create_point_cloud2(sim_dep_obs, sim_img_obs)
         pcd2 = create_point_cloud2(orig_depth, robo_img_obs)
@@ -49,7 +49,6 @@ def get_real_pcd(filepath='xarm_env/obs_dump.pkl'):
 
 
 def get_real_pcd_from_recording(all=False):
-
     obj = retrieve_traj()
     goal = obj["goal"]
     pcds = []
@@ -63,7 +62,22 @@ def get_real_pcd_from_recording(all=False):
             return pcd
         pcds.append({'pcd': pcd, 'goal': goal, 'action': action, 'depth_obs': depth_obs, 'img_obs': img_obs})
 
-    # visualize(pcds)
+    visualize(pcds)
+    return pcds
+
+def get_real_image_from_recording(all=False):
+    obj = retrieve_traj()
+    goal = obj["goal"]
+    pcds = []
+    for obs in obj['traj']:
+        depth_obs = obs["depth_obs"]
+        img_obs = obs["img_obs"]
+        action = obs["action"]
+        depth_obs = (depth_obs - 0.021) / (2.14 - 0.021)
+        return img_obs, depth_obs
+        pcds.append({'pcd': pcd, 'goal': goal, 'action': action, 'depth_obs': depth_obs, 'img_obs': img_obs})
+
+    visualize(pcds)
     return pcds
 
 
@@ -127,6 +141,29 @@ def display_interactive_point_clouds(pcds1, pcds2):
 
     print("ending int")
 
+def visualize(pcds):
+
+    vis = o3d.visualization.VisualizerWithKeyCallback()
+    vis.create_window()
+    i = 1
+    # real_pcd = get_real_pcd()
+
+    vis.add_geometry(pcds[i]['pcd'])
+
+
+    def update_pcd(vis):
+        nonlocal i, pcds
+        # global pcds
+        i = (i+1) % len(pcds)
+        vis.clear_geometries()
+        vis.add_geometry(pcds[i]['pcd'])
+        # print(pcds[i][0])
+
+    vis.register_key_callback(ord("K"), update_pcd)
+    vis.run()
+    vis.destroy_window()
+
+
 
 def display_interactive_point_cloud(pcds):
     # hide under a flag
@@ -148,7 +185,7 @@ def display_interactive_point_cloud(pcds):
         vis.clear_geometries()
         vis.add_geometry(pcds[i][1])
         print(pcds[i][0])
-        # vis.add_geometry(real_pcd)
+        vis.add_geometry(real_pcd)
 
     vis.register_key_callback(ord("K"), update_pcd)
     vis.run()

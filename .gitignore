@@ -130,3 +130,5 @@ BATCHES*
 *.pkl
 
 *.json
+
+exp_local/

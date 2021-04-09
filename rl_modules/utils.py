@@ -121,4 +121,6 @@ def get_texture_modder(env):
 
 def randomize_textures(modder, env):
     for name in env.sim.model.geom_names:
-        modder.rand_all(name)
+        print(name)
+        if name != 'object0': 
+            modder.rand_all(name)

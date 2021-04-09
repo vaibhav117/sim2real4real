@@ -3,14 +3,14 @@ import torch
 import numpy as np
 from depth_tricks import create_point_cloud, display_interactive_point_cloud
 from arguments import get_args
-
+import pickle
 args = get_args()
 
 
-path = f'./recording_xarm/recording_{args.i}.pt'
+path = f'./recording_xarm/recording.pt'
 depthz = True
 
-obj = torch.load(path)
+obj = pickle.load(open(path, 'rb'))
 
 
 for ob in obj['traj']:

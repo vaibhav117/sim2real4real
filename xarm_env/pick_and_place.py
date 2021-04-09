@@ -89,7 +89,7 @@ def test():
     env._viewers['rgb_array'] = viewer
 
     modder = get_texture_modder(env)
-    randomize_textures(modder, env)
+    # randomize_textures(modder, env)
     while True:
         print("Resetting..")
         obs = env.reset()
@@ -240,4 +240,4 @@ def test():
         #     break
         
 
-# test()
+test()
