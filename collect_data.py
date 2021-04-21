@@ -43,7 +43,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -54,18 +54,18 @@ def get_policy(model, obs, args, is_np=True):
     return model(state_input).detach().cpu().numpy().squeeze()
 
 
-def save_image(obs, parent_path='./offline_dataset'):
+def save_image(j, obs, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
     pickle.dump(obs, open(join(parent_path, str(datetime.datetime.now())), "wb"))
-    print(f"file saved to {join(parent_path, str(datetime.datetime.now()))}")
+    print(f"{j} file saved to {join(parent_path, str(datetime.datetime.now()))}")
 
 
-def generate_dataset(state_based_model, obj, args, parent_path='./offline_dataset'):
+def generate_dataset(state_based_model, obj, args, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
     # Deleting dataset folder
     os.system(f"rm -rf {parent_path}")
     # creating dataset folder
     os.system(f"mkdir {parent_path}")
-
-    for i in range(num_episodes):
+    num_episodes = 4000
+    for j in range(num_episodes):
         obs = env.reset()
         for i in range(50):
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
@@ -80,16 +80,16 @@ def generate_dataset(state_based_model, obj, args, parent_path='./offline_datase
             # step actions
             new_obs, rew, _ , _ = env.step(actions)
 
-            save_image(obs)
+            save_image(j, obs)
 
-            display_state(obs)
+            #display_state(obs)
             obs = new_obs
 
 
 
 class OfflineDataset(Dataset):
 
-    def __init__(self, parent_path='./offline_dataset'):
+    def __init__(self, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
         self.parent_path = parent_path
         self.files = os.listdir(parent_path)
 
@@ -134,8 +134,8 @@ def bc_train(env):
     g_mean = obj["g_mean"]
     g_std = obj["g_std"]
 
-    # generate_dataset(state_based_model, obj, args)
-    # exit()
+    generate_dataset(state_based_model, obj, args)
+    exit()
 
     dt_loader = get_offline_dataset()
 
