@@ -33,7 +33,7 @@ def randomize_textures(modder, sim):
         modder.rand_all(name)
 
 
-def render_image_without_fuss(env, height=250, width=250, depth=True):
+def render_image_without_fuss(env, height=100, width=100, depth=True):
     env.env._get_viewer("rgb_array").render(height, width)
     if depth:
         modder = TextureModder(env.sim)

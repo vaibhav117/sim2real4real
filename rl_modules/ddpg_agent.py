@@ -58,8 +58,8 @@ def reset_goal_fetch_reach(env, ach_goal):
 
 @benchmark
 def render_image_without_fuss(env):
-    env.env._get_viewer("rgb_array").render(250, 250)
-    data = env.env._get_viewer("rgb_array").read_pixels(250, 250, depth=False)
+    env.env._get_viewer("rgb_array").render(100, 100)
+    data = env.env._get_viewer("rgb_array").read_pixels(100, 100, depth=False)
     img = data[::-1, :, :]
     return img
 
@@ -126,9 +126,9 @@ class ddpg_agent(Agent):
         self.critic_loss = []
         self.actor_loss = []
         self.mean_rewards = []
-        self.viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
+        self.viewer.cam.distance = 1.25 # this will be randomized baby: domain randomization FTW
         self.viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
-        self.viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
+        self.viewer.cam.elevation = -11 # this will be randomized baby: domain Randomization FTW
         self.viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
         temp = torch.randn((1,25,25))
         temp = temp.cuda(MPI.COMM_WORLD.Get_rank())
@@ -218,9 +218,6 @@ class ddpg_agent(Agent):
         if self.args.randomize:
             self.modder = TextureModder(self.env.sim)
 
-        temp = torch.randn((1,25,25))
-        temp = temp.cuda(MPI.COMM_WORLD.Get_rank()) 
-        #self._eval_agent()
             
     def save_models(self, best=False):
         save_dict = {
@@ -287,7 +284,7 @@ class ddpg_agent(Agent):
         rgb = rgb / 255 # normalize image data between 0 and 1
         depth = depth[:, :, np.newaxis]
         # add randomization
-        depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
+        #depth = depth + np.random.uniform(-0.01, 0.01, size=depth.shape) # randomise depth by 1 cm
 
         # use real depths
         rgb, depth = use_real_depths_and_crop(rgb, depth)
@@ -300,7 +297,7 @@ class ddpg_agent(Agent):
         return rgbd
 
     @benchmark
-    def get_obs(self, task, action=None, step=False, height=250, width=250, info=False):
+    def get_obs(self, task, action=None, step=False, height=100, width=100, info=False):
         if step == False:
             obs = self.env.reset()
         else:
@@ -383,7 +380,7 @@ class ddpg_agent(Agent):
                 pi = self.teacher_actor_network(input_tensor)
                 return pi
             else:
-                if random.uniform(0,1) > 0.4: # use actor network, else use teacher network
+                if randomed: # use actor network, else use teacher network
                     o_tensor, g_tensor = self._preproc_inputs_image(observation["observation_image"][np.newaxis, :].copy(), observation["desired_goal"][np.newaxis, :].copy())
                     pi = self.actor_network(o_tensor, g_tensor)
                     return pi
@@ -818,7 +815,7 @@ class ddpg_agent(Agent):
 
     # do the evaluation
     @benchmark
-    def _eval_agent(self, img_height=250, img_width=250, record=False, ep=None):
+    def _eval_agent(self, img_height=100, img_width=100, record=False, ep=None):
         total_success_rate = []
         recordings=[]
         for _ in range(self.args.n_test_rollouts):
