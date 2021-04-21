@@ -165,7 +165,10 @@ def visualize(pcds):
 
 
 
-def display_interactive_point_cloud(pcds):
+def display_interactive_point_cloud(pcds, real=False):
+    """
+    BUG: Causes open GL to stop rendering ???
+    """
     # hide under a flag
 
     print("starting int")
@@ -173,7 +176,8 @@ def display_interactive_point_cloud(pcds):
     vis.create_window()
     i = 1
     # real_pcd = get_real_pcd()
-    real_pcd = get_real_pcd_from_recording()
+    if real:
+        real_pcd = get_real_pcd_from_recording()
 
     vis.add_geometry(pcds[0][1])
 
@@ -185,7 +189,8 @@ def display_interactive_point_cloud(pcds):
         vis.clear_geometries()
         vis.add_geometry(pcds[i][1])
         print(pcds[i][0])
-        vis.add_geometry(real_pcd)
+        if real:
+            vis.add_geometry(real_pcd)
 
     vis.register_key_callback(ord("K"), update_pcd)
     vis.run()

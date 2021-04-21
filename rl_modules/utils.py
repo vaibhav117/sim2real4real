@@ -16,7 +16,7 @@ def load_viewer(sim, device_id=MPI.COMM_WORLD.Get_rank()):
     return viewer
 
 def load_viewer_to_env(env, device_id=MPI.COMM_WORLD.Get_rank()):
-    viewer = MjRenderContextOffscreen(env.sim, device_id=device_id)
+    viewer = MjRenderContextOffscreen(env.sim, device_id=-1)
     viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
     viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
     viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
@@ -169,7 +169,7 @@ def _preproc_inputs_state(obs, args, is_np):
         inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0)
     else:
         inputs = torch.tensor(inputs, dtype=torch.float32)
-        
+
     return inputs
 
 def _preproc_inputs_image_goal(obs, args, is_np):

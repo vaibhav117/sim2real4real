@@ -11,6 +11,7 @@ from arguments import get_args
 import torch
 import torch.nn.functional as F
 import numpy as np
+from eval_agent import eval_agent_and_save
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -102,9 +103,9 @@ class OfflineDataset(Dataset):
         obj = pickle.load(open(file_path, "rb"))
         return obj
 
-def get_offline_dataset():
+def get_offline_dataset(batch_size=512):
     dt = OfflineDataset()
-    dt_loader = DataLoader(dataset=dt, batch_size=2, shuffle=True)
+    dt_loader = DataLoader(dataset=dt, batch_size=batch_size, shuffle=True, num_workers=4)
 
     # for obj in dt_loader:
     #     rgb = obj["rgb"]
@@ -143,8 +144,12 @@ def bc_train(env):
     optimizer = torch.optim.Adam(params=student_model.parameters(), lr=0.001)
 
     num_epochs = 100
-    for ep in range(num_epochs):
+    losses = []
+    rewards = []
+    best_succ_rate = 0
 
+    for ep in range(num_epochs):
+        eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
         # TODO:
         #add epoch init stuff here
 
@@ -183,19 +188,36 @@ def bc_train(env):
             loss.backward()
             optimizer.step()
 
-            print(loss.item())
 
-            # TODO: add plaotting for training
+            # TODO: add plotting for training
             losses.append(loss.item())
         
-        save_plot(losses, )
+
+
         if ep % 10 == 0:
             # save video of agent
-            save_record = True
+            args.record = True
         else:
-            save_record = False
+            args.record = False
         
-        eval_agent_and_save(env, student_model, save_record)
+        succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
+        rewards.append(succ_rate)
+        save_dict = {
+            'actor_net': student_model.state_dict(),
+            'o_mean': obj["o_mean"],
+            'o_std': obj["o_std"],
+            'g_mean': obj["g_mean"],
+            'g_std': obj["g_std"],
+            'reward_plots': rewards,
+            'losses': losses,
+        }
+        if succ_rate >= best_succ_rate:
+            torch.save(save_dict, "best_bc_model.pt")
+            best_succ_rate = succ_rate
+        else:
+            torch.save(save_dict, "curr_bc_model.pt")
+
+        # eval_agent_and_save(env, student_model, save_record)
 
             
             

@@ -438,8 +438,8 @@ class FetchEnv(RobotEnv):
             if self.target_in_the_air and self.np_random.uniform() < 0.5:
                 goal[2] += self.np_random.uniform(0, 0.45)
             # # identify bounds
-            # goal = self.initial_gripper_xpos[:3] + np.asarray([-self.target_range, -self.target_range, -self.target_range])
-            # goal += self.target_offset
+            goal = self.initial_gripper_xpos[:3] + np.asarray([self.target_range, -self.target_range, 0.1])
+            goal += self.target_offset
         else:
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(-self.target_range, self.target_range, size=3)
         # print(f"Goal is {goal}")
