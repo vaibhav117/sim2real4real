@@ -206,11 +206,12 @@ def _preproc_inputs_image_goal(obs, args, is_np):
 
     g = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
     g_norm = torch.tensor(g, dtype=torch.float32)
-    # g_norm = torch.zeros((1, 3))
+    state_based_input = _preproc_inputs_state(obs, args, is_np)
     if args.cuda:
         obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
         g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
-    state_based_input = _preproc_inputs_state(obs, args, is_np)
+        state_based_input = state_based_input.cuda(MPI.COMM_WORLD.Get_rank())
+    
     return obs_img, g_norm, state_based_input
 
 

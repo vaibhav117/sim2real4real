@@ -135,8 +135,8 @@ def bc_train(env):
     g_mean = obj["g_mean"]
     g_std = obj["g_std"]
 
-    generate_dataset(state_based_model, obj, args)
-    exit()
+    # generate_dataset(state_based_model, obj, args)
+    # exit()
 
     dt_loader = get_offline_dataset()
 
@@ -147,6 +147,10 @@ def bc_train(env):
     losses = []
     rewards = []
     best_succ_rate = 0
+
+    if args.cuda:
+        student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
+        state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
 
     for ep in range(num_epochs):
         eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
@@ -211,6 +215,7 @@ def bc_train(env):
             'reward_plots': rewards,
             'losses': losses,
         }
+
         if succ_rate >= best_succ_rate:
             torch.save(save_dict, "best_bc_model.pt")
             best_succ_rate = succ_rate
