@@ -116,11 +116,13 @@ class her_sampler:
         transitions = {k: transitions[k].reshape(batch_size, *transitions[k].shape[1:]) for k in transitions.keys()}
 
         # show_video()
-        # if 'obs_imgs' in transitions:
-        #     for i in range(20):
-        #         img1 = transitions['obs_imgs'][i]
-        #         img2 = transitions['obs_imgs'][i+1]
-        #         show_video(img1, img2)
+        if 'obs_imgs' in transitions:
+            for i in range(20):
+                # print(transitions['obs_imgs'][i])
+                img1 = transitions['obs_imgs'][i][:, :, :3]
+                img2 = transitions['obs_imgs'][i+1][:, :, :3]
+                print(transitions['r'][i])
+                show_video(img1, img2)
         return transitions
 
 

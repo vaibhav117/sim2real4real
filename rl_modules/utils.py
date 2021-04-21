@@ -5,6 +5,7 @@ import numpy as np
 from mpi4py import MPI
 from mujoco_py import MjRenderContextOffscreen
 from mujoco_py.modder import TextureModder
+import torch
 
 def load_viewer(sim, device_id=MPI.COMM_WORLD.Get_rank()):
     viewer = MjRenderContextOffscreen(sim, device_id=device_id)
@@ -13,6 +14,15 @@ def load_viewer(sim, device_id=MPI.COMM_WORLD.Get_rank()):
     viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
     viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
     return viewer
+
+def load_viewer_to_env(env, device_id=MPI.COMM_WORLD.Get_rank()):
+    viewer = MjRenderContextOffscreen(env.sim, device_id=device_id)
+    viewer.cam.distance = 1.2 # this will be randomized baby: domain randomization FTW
+    viewer.cam.azimuth = 180 # this will be randomized baby: domain Randomization FTW
+    viewer.cam.elevation = -25 # this will be randomized baby: domain Randomization FTW
+    viewer.cam.lookat[2] = 0.5 # IMPORTANT FOR ALIGNMENT IN SIM2REAL !!
+    env.env._viewers["rgb_array"] = viewer
+    return env
 
 def normalize_depth(img):
     near = 0.021
@@ -124,3 +134,91 @@ def randomize_textures(modder, env):
         print(name)
         if name != 'object0': 
             modder.rand_all(name)
+
+"""
+train the agent, the MPI part code is copy from openai baselines(https://github.com/openai/baselines/blob/master/baselines/her)
+"""
+def get_env_params(env):
+    obs = env.reset()
+    # close the environment
+    params = {'obs': obs['observation'].shape[0],
+            'goal': obs['desired_goal'].shape[0],
+            'action': env.action_space.shape[0],
+            'action_max': env.action_space.high[0],
+            }
+    params['max_timesteps'] = env._max_episode_steps
+    return params
+
+
+# pre_process the inputs
+def _preproc_inputs_state(obs, args, is_np):
+    obj = obs["obj"]
+    if is_np:
+        obs_state = obs["observation"][np.newaxis, :]
+        g = obs["desired_goal"][np.newaxis, :]
+    else:
+        obs_state = obs["observation"].numpy()
+        g = obs["desired_goal"].numpy()
+
+    obs_norm = np.clip((obs_state - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range)
+    g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+    # concatenate the stuffs
+
+    inputs = np.concatenate([obs_norm, g_norm], axis=1)
+    if is_np:
+        inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0)
+    else:
+        inputs = torch.tensor(inputs, dtype=torch.float32)
+        
+    return inputs
+
+def _preproc_inputs_image_goal(obs, args, is_np):
+    """
+    One function to preprocess them all.
+
+    """
+    if is_np:
+        obs_img = obs["rgb"][np.newaxis, :].copy()
+        g = obs["desired_goal"][np.newaxis, :].copy()
+        depth = obs["dep"][np.newaxis, :].copy()
+        obj = obs["obj"]
+        g = g[np.newaxis, :]
+    else:
+        obs_img = obs["rgb"].numpy().copy()
+        g = obs["desired_goal"].numpy().copy()
+        depth = obs["dep"].numpy().copy()
+        obj = obs["obj"]
+
+    
+    if args.depth:
+        # add depth observation
+        obs_img = obs_img.squeeze(0)
+        obs_img = obs_img.astype(np.float32)
+        # obs_img = obs_img / 255 # normalize image data between 0 and 1
+        obs_img, depth = use_real_depths_and_crop(obs_img, depth)
+        obs_img = np.concatenate((obs_img, depth), axis=2)
+        obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
+        obs_img = obs_img.permute(0, 3, 1, 2)
+    else:
+        obs_img = torch.tensor(obs_img, dtype=torch.float32)
+        obs_img = obs_img.permute(0, 3, 1, 2)
+    
+
+    g = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+    g_norm = torch.tensor(g, dtype=torch.float32)
+    # g_norm = torch.zeros((1, 3))
+    if args.cuda:
+        obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+        g_norm = g_norm.cuda(MPI.COMM_WORLD.Get_rank())
+    state_based_input = _preproc_inputs_state(obs, args, is_np)
+    return obs_img, g_norm, state_based_input
+
+
+def display_state(obs):
+    """
+    Display state
+    """
+    cv2.imshow("frame", obs["rgb"])
+    cv2.waitKey(1)
+
+

@@ -71,7 +71,8 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             obj = torch.load(file_path, map_location=torch.device('cpu'))
             rew_asym = obj["reward_plots"]
             two = len(obj['actor_losses']) / len(obj['reward_plots'])
-            plt.plot(np.arange(len(rew_asym))*two*4, rew_asym)
+            plt.plot(np.arange(len(rew_asym)), rew_asym, color='red')
+            # plt.plot(np.arange(len(obj['actor_losses'])), obj['actor_losses'], color='blue')
             plt.show()
 
         # loading best model for Fetch Reach
@@ -229,10 +230,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                 })
 
                 obs = observation_new['observation']
-                # obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
-                viewer.render(100, 100)
-                data, dep = viewer.read_pixels(100, 100, depth=True)
-                obs_img, depth_image = data[::-1, :, :], dep[::-1, :]
+               
                 g = observation_new['desired_goal']
                 observation = observation_new
                 per_success_rate.append(info['is_success'])
@@ -296,12 +294,13 @@ if __name__ == '__main__':
             'xarm': {
                 'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
                 'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
+                'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
             }
         }
     }
     args = get_args()
     args.env_name = 'FetchPickAndPlace-v1'
-    args.task = 'sym_state'
+    args.task = 'asym_goal_outside_image_distill'
     # args.task = 'sym_state'
     # env = gym.make(args.env_name)
     if args.env_name =='FetchReach-v1':

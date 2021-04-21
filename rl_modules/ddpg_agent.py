@@ -73,7 +73,7 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
     
     if env_params["load_saved"] == True:
         print("Loading the actor/critic model from {}".format(env_params["model_path"]))
-        obj = torch.load(env_params["model_path"])
+        obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
         actor_network.load_state_dict(obj["actor_net"])
         critic_network.load_state_dict(obj["critic_net"])
     
@@ -292,7 +292,7 @@ class ddpg_agent(Agent):
 
         # use real depths
         rgb, depth = use_real_depths_and_crop(rgb, depth)
-        show_video(rgb)
+        # show_video(rgb)
         # plt.imshow(rgb)
         # plt.show()
         # plt.imshow(depth)
