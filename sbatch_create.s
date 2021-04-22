@@ -15,6 +15,7 @@ module load mpi/openmpi-4.0
 nvidia-smi
 source activate dmc
 #pip install --upgrade --force-reinstall --no-cache-dir torch torchvision
+uname -n
 cd /home/ksc487/sim2real4real
 bash create_dt.sh
 

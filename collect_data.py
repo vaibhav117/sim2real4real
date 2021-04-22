@@ -100,12 +100,13 @@ class OfflineDataset(Dataset):
     
     def __getitem__(self, idx):
         file_path = join(self.parent_path, self.files[idx])
-        obj = pickle.load(open(file_path, "rb"))
+        with open(file_path, "rb") as f:
+            obj = pickle.load(f)
         return obj
 
-def get_offline_dataset(batch_size=512):
+def get_offline_dataset(batch_size=256):
     dt = OfflineDataset()
-    dt_loader = DataLoader(dataset=dt, batch_size=batch_size, shuffle=True, num_workers=4)
+    dt_loader = DataLoader(dataset=dt, batch_size=batch_size, shuffle=True, num_workers=0)
 
     # for obj in dt_loader:
     #     rgb = obj["rgb"]
@@ -153,7 +154,7 @@ def bc_train(env):
         state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
 
     for ep in range(num_epochs):
-        eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
+        #eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
         # TODO:
         #add epoch init stuff here
 
@@ -176,8 +177,6 @@ def bc_train(env):
             # TODO normalize
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(dt, args, is_np=False)
 
-            inp = torch.cat((obs_state, g), 1)
-            inp = inp.to(torch.float32)
 
             # run through model
             with torch.no_grad():
@@ -195,7 +194,7 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
-        
+            print(losses[-1])
 
 
         if ep % 10 == 0:
