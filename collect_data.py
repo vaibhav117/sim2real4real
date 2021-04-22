@@ -11,7 +11,9 @@ from arguments import get_args
 import torch
 import torch.nn.functional as F
 import numpy as np
+import copy
 from eval_agent import eval_agent_and_save
+import time 
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -44,7 +46,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -55,17 +57,19 @@ def get_policy(model, obs, args, is_np=True):
     return model(state_input).detach().cpu().numpy().squeeze()
 
 
-def save_image(j, obs, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
-    pickle.dump(obs, open(join(parent_path, str(datetime.datetime.now())), "wb"))
-    print(f"{j} file saved to {join(parent_path, str(datetime.datetime.now()))}")
+def save_image(j, obs, parent_path):
+    outfile = join(parent_path, str(datetime.datetime.now()))
+    np.save(outfile, obs)
+    print(f"{j} file saved to {outfile}")
 
 
-def generate_dataset(state_based_model, obj, args, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
+def generate_dataset(state_based_model, obj, args):
+    parent_path = args.bc_dataset_path
     # Deleting dataset folder
     os.system(f"rm -rf {parent_path}")
     # creating dataset folder
     os.system(f"mkdir {parent_path}")
-    num_episodes = 4000
+    num_episodes = 100
     for j in range(num_episodes):
         obs = env.reset()
         for i in range(50):
@@ -80,8 +84,9 @@ def generate_dataset(state_based_model, obj, args, parent_path='/misc/kcgscratch
 
             # step actions
             new_obs, rew, _ , _ = env.step(actions)
-
-            save_image(j, obs)
+            del obs['obj'] 
+        
+            save_image(j, obs, parent_path)
 
             #display_state(obs)
             obs = new_obs
@@ -90,30 +95,57 @@ def generate_dataset(state_based_model, obj, args, parent_path='/misc/kcgscratch
 
 class OfflineDataset(Dataset):
 
-    def __init__(self, parent_path='/misc/kcgscratch1/karan_exp/offline_dataset'):
+    def __init__(self, parent_path):
         self.parent_path = parent_path
         self.files = os.listdir(parent_path)
+        self.all_objs = []
+        # for i, f_path in enumerate(self.files):
+        #     file_path = join(self.parent_path, f_path)
+        #     with open(file_path, "rb") as f:
+        #         obj = np.load(f, allow_pickle=True)
+        #     self.all_objs.append(obj)
+        #     print(i)
+
 
 
     def __len__(self):
         return len(self.files)
     
     def __getitem__(self, idx):
-        file_path = join(self.parent_path, self.files[idx])
+        # file_path = join(self.parent_path, self.files[idx])
+        # f = open(file_path, "rb")
+        # # with open(file_path, "rb") as f:
+        # obj = pickle.load(f)
+        # obj = copy.deepcopy(obj)
+        # f.close()
+        # print(obj.keys())
+        # print(type(obj["rgb"]))
+        # obj["rgb"] = torch.from_numpy(obj["rgb"])
+        # obj["dep"] = torch.from_numpy(obj["dep"])
+        # obj["actions"] = torch.from_numpy(obj["actions"])
+        # obj["desired_goal"] = torch.from_numpy(obj["desired_goal"])
+        # obj["achieved_goal"] = torch.from_numpy(obj["achieved_goal"])
+        # obj["observation"] = torch.from_numpy(obj["observation"])
+        # obj = torch.randn((1,2,3))
+        f_path = self.files[idx]
+        file_path = join(self.parent_path, f_path)
+        # print(file_path)
         with open(file_path, "rb") as f:
-            obj = pickle.load(f)
-        return obj
+            obj = np.load(f, allow_pickle=True)
+        d = obj[()]
+        return d
+        
+        # return torch.randn((1,400,400))
 
-def get_offline_dataset(batch_size=256):
-    dt = OfflineDataset()
-    dt_loader = DataLoader(dataset=dt, batch_size=batch_size, shuffle=True, num_workers=0)
+def get_offline_dataset(args):
+    dt = OfflineDataset(parent_path=args.bc_dataset_path)
+    dt_loader = DataLoader(dataset=dt, batch_size=args.batch_size, shuffle=True, num_workers=8)
 
     # for obj in dt_loader:
     #     rgb = obj["rgb"]
     #     dep = obj["depth"]
     #     obs = obj["obs"]
     return dt_loader
-
 
 
 def bc_train(env):
@@ -136,8 +168,8 @@ def bc_train(env):
     g_mean = obj["g_mean"]
     g_std = obj["g_std"]
 
-    # generate_dataset(state_based_model, obj, args)
-    # exit()
+    generate_dataset(state_based_model, obj, args)
+    exit()
 
     dt_loader = get_offline_dataset()
 
@@ -152,14 +184,15 @@ def bc_train(env):
     if args.cuda:
         student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
         state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
-
+    print("start training")
     for ep in range(num_epochs):
-        #eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
         # TODO:
         #add epoch init stuff here
-
-        for dt in dt_loader:
-
+        start = time.time()
+        for idx, dt in enumerate(dt_loader):
+            # print(f"start {idx}")
+            continue
+            # print("start")
             # TODO:
 
             # get data
@@ -194,7 +227,9 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
-            print(losses[-1])
+        end = time.time()
+
+        print(f"Total time taken {end - start}")
 
 
         if ep % 10 == 0:
