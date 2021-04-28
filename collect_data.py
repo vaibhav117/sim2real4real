@@ -6,14 +6,16 @@ import datetime
 from torch.utils.data import Dataset, DataLoader
 import os 
 from rl_modules.ddpg_agent import model_factory
-from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action
+from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action, show_video
 from arguments import get_args
 import torch
 import torch.nn.functional as F
 import numpy as np
 import copy
 from eval_agent import eval_agent_and_save
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time 
+import cv2
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -136,6 +138,8 @@ class OfflineDataset(Dataset):
         with open(file_path, "rb") as f:
             obj = np.load(f, allow_pickle=True)
         d = obj[()]
+        d["actions"] = d["actions"].astype(np.float32)
+        # print(d.items())
         return d
         
         # return torch.randn((1,400,400))
@@ -176,9 +180,11 @@ def bc_train(env):
 
     dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.Adam(params=student_model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(params=student_model.parameters(), lr=0.01)
 
-    num_epochs = 100
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
+
+    num_epochs = 500
     losses = []
     rewards = []
     best_succ_rate = 0
@@ -188,22 +194,11 @@ def bc_train(env):
         state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
     print("start training")
     for ep in range(num_epochs):
+        total_loss = 0
         # TODO:
         #add epoch init stuff here
         start = time.time()
         for idx, dt in enumerate(dt_loader):
-            # print(f"start {idx}")
-            # continue
-            # print("start")
-            # TODO:
-
-            # get data
-
-            # run through model
-
-            # compute the loss
-
-            # optimize the loss
 
             dt["obj"] = obj
             obs_state = dt["observation"]
@@ -212,11 +207,20 @@ def bc_train(env):
             # TODO normalize
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(dt, args, is_np=False)
 
+            # print(obs_img.shape)
+            # obs_img = obs_img.permute(0,2,3,1).numpy()[0].astype(np.uint8)
+            # show_video(obs_img)
+            # continue
 
             # run through model
-            with torch.no_grad():
-                acts = state_based_model(state_based_input)
+            if args.scripted:
+                with torch.no_grad():
+                    acts = dt["actions"].clone().detach()
+            else:
+                with torch.no_grad():
+                    acts = state_based_model(state_based_input)
 
+           
             student_acts = student_model(obs_img, g_norm)
             # compute the loss
             loss = F.mse_loss(student_acts, acts)
@@ -226,14 +230,18 @@ def bc_train(env):
             loss.backward()
             optimizer.step()
 
+            total_loss += loss.item()
+            
 
             # TODO: add plotting for training
             losses.append(loss.item())
-            if idx % 100 == 0:
-                print(f"Loss {sum(losses) / len(losses)}")
+            
         end = time.time()
+        
+        # run after every epoch
+        scheduler.step(total_loss)
 
-        print(f"Total time taken {end - start}")
+        print(f"Epoch {ep} | Total time taken {end - start} | Loss {total_loss / len(dt_loader)}")
 
 
         if ep % 10 == 0:
@@ -282,5 +290,5 @@ def create_off_dataset():
 
     generate_dataset(None, None, args)
 
-# bc_train(env)
-create_off_dataset()
+bc_train(env)
+# create_off_dataset()
