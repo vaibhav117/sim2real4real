@@ -408,7 +408,8 @@ class FetchEnv(RobotEnv):
             self.sim.data.set_joint_qpos('object0:joint', object_qpos)
 
             # with 0.5 probability, set starting state of the robot gripper on top of the object
-            if np.random.uniform(0, 1) > 0.5:
+            # if np.random.uniform(0, 1) > 0.5:
+            if False:
                 act = np.zeros((4,))
 
                 pos_of_box = object_qpos[:3]
@@ -432,14 +433,18 @@ class FetchEnv(RobotEnv):
 
     def _sample_goal(self):
         if self.has_object:
-            goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(-self.target_range, self.target_range, size=3)
-            goal += self.target_offset
-            goal[2] = self.height_offset
-            if self.target_in_the_air and self.np_random.uniform() < 0.5:
-                goal[2] += self.np_random.uniform(0, 0.45)
+            goal = np.asarray([0, 0, 0], dtype=np.float32)
+            # goal = self.initial_gripper_xpos[:3] + np.asarray([self.target_range, self.target_range, self.target_range])
+            goal[0] = self.initial_gripper_xpos[0] + self.np_random.uniform(-self.target_range, self.target_range, size=1)
+            goal[1] = self.initial_gripper_xpos[1] + self.np_random.uniform(-self.target_range, self.target_range, size=1)
+            goal[2] = self.initial_gripper_xpos[2] + self.np_random.uniform(-0.1, self.target_range, size=1)
+            # goal += self.target_offset
+            # goal[2] = self.height_offset + 0.1
+            # if self.target_in_the_air and self.np_random.uniform() < 0.5:
+            #     goal[2] += self.np_random.uniform(0.1, 0.2)
             # # identify bounds
-            goal = self.initial_gripper_xpos[:3] + np.asarray([self.target_range, -self.target_range, 0.1])
-            goal += self.target_offset
+            # goal = self.initial_gripper_xpos[:3] + np.asarray([self.target_range, -self.target_range, 0.1])
+            # goal += self.target_offset
         else:
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(-self.target_range, self.target_range, size=3)
         # print(f"Goal is {goal}")

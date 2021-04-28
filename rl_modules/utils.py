@@ -123,7 +123,7 @@ def timeit(fn):
 
 def show_video(img):
     cv2.imshow('frame', cv2.resize(img, (200,200)))
-    cv2.waitKey()
+    cv2.waitKey(1)
 
 def get_texture_modder(env):
     modder = TextureModder(env.sim)

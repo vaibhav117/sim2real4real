@@ -70,13 +70,14 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         def load_plot(file_path):
             obj = torch.load(file_path, map_location=torch.device('cpu'))
             rew_asym = obj["reward_plots"]
-            two = len(obj['actor_losses']) / len(obj['reward_plots'])
+            # two = len(obj['losses']) / len(obj['reward_plots'])
             plt.plot(np.arange(len(rew_asym)), rew_asym, color='red')
             # plt.plot(np.arange(len(obj['actor_losses'])), obj['actor_losses'], color='blue')
             plt.show()
 
         # loading best model for Fetch Reach
         model_path = paths[args.env_name]['xarm'][args.task] + '/model.pt'
+        model_path = 'curr_bc_model.pt'
 
         load_plot(model_path)
 
@@ -218,7 +219,7 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                         if args.task != 'sym_state':
                             pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
                         else:
-                            pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
+                            pi = get_policy(obs_img=obs_img.copy()[np.newaxis, :], g=g[np.newaxis, :], obs=observation["observation"])
                         actions = pi.detach().cpu().numpy().squeeze()
                 observation_new, _, _, info = env.step(actions)
 
@@ -228,6 +229,8 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
                     'depth_img': save_depth_image,
                     'actions': actions,
                 })
+
+                show_video(save_obs_img)
 
                 obs = observation_new['observation']
                
@@ -239,9 +242,9 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             if args.record:
                 create_folder_and_save({'traj': rollout, 'goal': g})
 
-            from pcd_utils import display_interactive_point_cloud
+            # from pcd_utils import display_interactive_point_cloud
 
-            display_interactive_point_cloud(pcds)
+            # display_interactive_point_cloud(pcds)
            
             total_success_rate.append(per_success_rate)
             rollouts.append(rollout)
@@ -300,7 +303,7 @@ if __name__ == '__main__':
     }
     args = get_args()
     args.env_name = 'FetchPickAndPlace-v1'
-    args.task = 'asym_goal_outside_image_distill'
+    args.task = 'asym_goal_outside_image'
     # args.task = 'sym_state'
     # env = gym.make(args.env_name)
     if args.env_name =='FetchReach-v1':
