@@ -146,4 +146,4 @@ def test_scripted_policy():
             obs,  r, _, infor = env.step(act)
         print(j)
 
-test_scripted_policy()
+# test_scripted_policy()

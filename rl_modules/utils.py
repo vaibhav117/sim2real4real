@@ -44,6 +44,49 @@ def use_real_depths_and_crop(rgb, depth, vis=False):
 
     return rgb, depth[:, :, np.newaxis]
 
+
+def scripted_action(obs, picked_object):
+    if not picked_object:
+        if abs(obs["observation"][6]) > 0.001 or abs(obs["observation"][7] - 0.02) > 0.001:
+            # print("X")
+            action = np.asarray([obs["observation"][6], obs["observation"][7] - 0.02, 0]) * 50
+            b = np.asarray((-1)).reshape((1))
+            action = np.concatenate((action, b), axis=0)
+            return action, False
+
+        # if abs(obs["observation"][7] - 0.02) > 0.001:
+        #     print("Y")
+        #     y_act = obs["observation"][7] - 0.02  
+        #     action = np.asarray([0, y_act, 0]) * 10
+        #     b = np.asarray((-1)).reshape((1))
+        #     action = np.concatenate((action, b), axis=0)
+        #     return action, False
+        
+        if abs(obs["observation"][8]) > 0.001:
+            # print("Z")
+            action = np.asarray([0, 0, obs["observation"][8]]) * 50
+            b = np.asarray((-1)).reshape((1))
+            action = np.concatenate((action, b), axis=0)
+            return action, False
+
+    if abs(obs["observation"][7]) > 0.017:
+        # print("close gripper")
+        action = np.asarray([0, 0, 0, 1])
+        return action, True
+
+    # print("go towards goal")
+    desired_goal = obs["desired_goal"]  # place of goal
+    achieved_goal = obs["achieved_goal"] # actual goal
+
+    action = desired_goal - achieved_goal
+    scaler = 50
+    action = np.asarray([action[0]*scaler, action[1]*scaler, action[2]*scaler, 1])
+
+    return action, True
+
+
+
+
 class Benchmark:
 
     def __init__(self):

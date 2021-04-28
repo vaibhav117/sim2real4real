@@ -6,7 +6,7 @@ import datetime
 from torch.utils.data import Dataset, DataLoader
 import os 
 from rl_modules.ddpg_agent import model_factory
-from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env
+from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action
 from arguments import get_args
 import torch
 import torch.nn.functional as F
@@ -72,25 +72,28 @@ def generate_dataset(state_based_model, obj, args):
     num_episodes = 2000
     for j in range(num_episodes):
         obs = env.reset()
-        for i in range(50):
+        picked_object = False
+        for i in range(100): # more needed for pick and place
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
 
             # sampling policy used saved model ?
             obs["rgb"] = rgb
             obs["dep"] = dep
-            obs["obj"] = obj
-            actions = get_policy(state_based_model, obs, args)
+            if args.scripted:
+                actions, picked_object = scripted_action(obs, picked_object)
+            else:
+                obs["obj"] = obj
+                actions = get_policy(state_based_model, obs, args)
+                del obs['obj']
             obs["actions"] = actions
 
             # step actions
             new_obs, rew, _ , _ = env.step(actions)
-            del obs['obj'] 
         
             save_image(j, obs, parent_path)
 
             #display_state(obs)
             obs = new_obs
-
 
 
 class OfflineDataset(Dataset):
@@ -274,5 +277,10 @@ def bc_train(env):
     #         display_state(obs)
     #         obs = new_obs
 
+def create_off_dataset():
+    args = get_args()
 
-bc_train(env)
+    generate_dataset(None, None, args)
+
+# bc_train(env)
+create_off_dataset()
