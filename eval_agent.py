@@ -163,3 +163,4 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
         path = "temp.mp4"
         imageio.mimsave(path, frames, fps=30)
     print(f"Epoch {ep}: Success rate {local_success_rate}")
+    return local_success_rate
