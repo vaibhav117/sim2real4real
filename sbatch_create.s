@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=40:00:00
 #SBATCH --constraint=pascal|turing|volta
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --mem=50GB
 
 . ~/.bashrc

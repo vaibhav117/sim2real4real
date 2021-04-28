@@ -16,6 +16,7 @@ from eval_agent import eval_agent_and_save
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time 
 import cv2
+from mpi4py import MPI
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -162,7 +163,7 @@ def bc_train(env):
     env_params["load_saved"] = True
     env_params["model_path"] = paths[args.env_name]['xarm'][args.task] + '/model.pt'
 
-    args.cuda = False
+    #args.cuda = True
     state_based_model, _, _, _ = model_factory(task='sym_state', env_params=env_params)
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
@@ -216,6 +217,8 @@ def bc_train(env):
             if args.scripted:
                 with torch.no_grad():
                     acts = dt["actions"].clone().detach()
+                    if args.cuda:
+                        acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
             else:
                 with torch.no_grad():
                     acts = state_based_model(state_based_input)
