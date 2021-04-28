@@ -226,8 +226,7 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
-            if idx % 100 == 0:
-                print(f"Loss {sum(losses) / len(losses)}")
+            print("Loss")
         end = time.time()
 
         print(f"Total time taken {end - start}")
