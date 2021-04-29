@@ -6,9 +6,9 @@ from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightM
 from depth_tricks import create_point_cloud, create_point_cloud2
 import cv2 
 import imageio
+from rl_modules.utils import show_video
 
 def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
-
     
     modder = TextureModder(env.sim)
 
@@ -22,10 +22,12 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             obs_img = obs_img.astype(np.float32)
             # obs_img = obs_img / 255 # normalize image data between 0 and 1
             obs_img, depth = use_real_depths_and_crop(obs_img, depth)
+            
             obs_img = np.concatenate((obs_img, depth), axis=2)
             obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
             obs_img = obs_img.permute(0, 3, 1, 2)
         else:
+            # show_video(obs_img[0])
             obs_img = torch.tensor(obs_img, dtype=torch.float32)
             obs_img = obs_img.permute(0, 3, 1, 2)
         
@@ -102,6 +104,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             # randomize_camera(viewer)
         
         max_steps = env._max_episode_steps
+        max_steps = 100
         for _ in range(max_steps):
             
             if args.randomize:
@@ -111,7 +114,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
             save_obs_img, save_depth_image = use_real_depths_and_crop(obs_img, depth_image)
 
-            #display_state(obs_img)
+            display_state(obs_img)
             
             #pcd = create_point_cloud(save_obs_img, save_depth_image, fovy=45)
             #pcds.append(("none", pcd))

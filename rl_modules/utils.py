@@ -35,14 +35,28 @@ def use_real_depths_and_crop(rgb, depth, vis=False):
     depth = normalize_depth(depth)
     depth = (depth - 0.021) / (2.14 - 0.021)
     
-    depth = cv2.resize(depth[10:80, 10:90], (100,100))
-    rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
+    depth = cv2.resize(depth[:, 10:80, 10:90], (100,100))
+    rgb = cv2.resize(rgb[:, 10:80, 10:90, :], (100,100))
     
     if vis:
         from depth_tricks import create_point_cloud
         create_point_cloud(rgb, depth, vis=True)
 
     return rgb, depth[:, :, np.newaxis]
+
+def use_real_depths_and_crop_np(rgb, depth, vis=False):
+    # TODO: add rgb normalization as well
+    depth = normalize_depth(depth)
+    depth = (depth - 0.021) / (2.14 - 0.021)
+    
+    depth = depth[:, 10:80, 10:90]
+    rgb = rgb[:, 10:80, 10:90]
+    
+    if vis:
+        from depth_tricks import create_point_cloud
+        create_point_cloud(rgb, depth, vis=True)
+
+    return rgb, depth[:, :,:, np.newaxis]
 
 
 def scripted_action(obs, picked_object):
@@ -235,13 +249,23 @@ def _preproc_inputs_image_goal(obs, args, is_np):
     
     if args.depth:
         # add depth observation
-        obs_img = obs_img.squeeze(0)
-        obs_img = obs_img.astype(np.float32)
-        # obs_img = obs_img / 255 # normalize image data between 0 and 1
-        obs_img, depth = use_real_depths_and_crop(obs_img, depth)
-        obs_img = np.concatenate((obs_img, depth), axis=2)
-        obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
-        obs_img = obs_img.permute(0, 3, 1, 2)
+        if is_np:
+            obs_img = obs_img.squeeze(0)
+            obs_img = obs_img.astype(np.float32)
+            print(obs_img.shape, depth.shape)
+            # obs_img = obs_img / 255 # normalize image data between 0 and 1
+            obs_img, depth = use_real_depths_and_crop(obs_img, depth)
+            obs_img = np.concatenate((obs_img, depth), axis=2)
+            obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+        else:
+            obs_img = obs_img.astype(np.float32)
+            # obs_img = obs_img / 255 # normalize image data between 0 and 1
+            obs_im, depth = use_real_depths_and_crop_np(obs_img, depth)
+            obs_img = np.concatenate((obs_im, depth), axis=3)
+            obs_img = torch.tensor(obs_img, dtype=torch.float32)
+            obs_img = obs_img.permute(0, 3, 1, 2)
+            print(obs_img.shape)
     else:
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)

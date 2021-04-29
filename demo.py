@@ -61,7 +61,9 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
         # env.reset()
         # env params
         env_params = get_env_params(env)
-        env_params["model_path"] = paths[args.env_name]['xarm'][args.task] # TODO: fix bad practice
+        model_path = 'curr_bc_model.pt'
+        # model_path = paths[args.env_name]['xarm'][args.task]
+        env_params["model_path"] = model_path # TODO: fix bad practice
         env_params["load_saved"] = args.loadsaved
         env_params["depth"] = args.depth
         
@@ -76,8 +78,6 @@ def _eval_agent(args, paths, env, image_based=True, cuda=False):
             plt.show()
 
         # loading best model for Fetch Reach
-        model_path = paths[args.env_name]['xarm'][args.task] + '/model.pt'
-        model_path = 'curr_bc_model.pt'
 
         load_plot(model_path)
 

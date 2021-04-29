@@ -48,6 +48,7 @@ def get_args():
     parser.add_argument('--fillbuffer', action='store_true', help='plot act, crit losses during training')
     parser.add_argument('--scripted', action='store_true', help='scripted plicy to bc')
     parser.add_argument('--i', type=int, default=20, help='the recording id to be played back')
+    parser.add_argument('--just-eval', action="store_true", help='just eval behavioural clone')
     args = parser.parse_args()
 
     return args

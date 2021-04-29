@@ -22,9 +22,9 @@ class actor(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        actions = self.max_action * torch.tanh(self.action_out(x))
+        # actions = self.max_action * torch.tanh(self.action_out(x))
 
-        return actions
+        return self.action_out(x)
 
 class asym_goal_outside_image(nn.Module):
     def __init__(self, env_params):
@@ -67,7 +67,7 @@ class asym_goal_outside_image(nn.Module):
         x = F.relu(self.fc3(x))
         actions = self.max_action * torch.tanh(self.action_out(x))
 
-        return actions
+        return self.action_out(x)
 
 
 class resnet_actor(nn.Module):
@@ -213,7 +213,7 @@ class image_encoder_net(nn.Module):
         self.bn4 = nn.BatchNorm2d(num_features=1)
         self.flatten = nn.Flatten()
         # self.fc1 = nn.Linear(env_params['obs'] + env_params['goal'], 256)
-        self.fc1 = nn.Linear(81, 26)
+        self.fc1 = nn.Linear(81, 4)
         
     def forward(self, x):
         x = F.relu(self.bn1(self.cnn1(x)))

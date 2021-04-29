@@ -14,8 +14,10 @@ import numpy as np
 import copy
 from eval_agent import eval_agent_and_save
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from rl_modules.utils import plot_grad_flow
 import time 
 import cv2
+import matplotlib.pyplot as plt
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -48,11 +50,21 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
 }
+
+def plot_model_stats(obj):
+    print(obj.keys())
+    rew_asym = obj["reward_plots"]
+    # two = len(obj['losses']) / len(obj['reward_plots'])
+    # plt.plot(np.arange(len(rew_asym)), rew_asym, color='red')
+    plt.plot(np.arange(len(obj["losses"][10:])), obj["losses"][10:], color='red')
+    # plt.plot(np.arange(len(obj['actor_losses'])), obj['actor_losses'], color='blue')
+    plt.show()
+    exit()
 
 def get_policy(model, obs, args, is_np=True):
     obs, g_norm, state_input = _preproc_inputs_image_goal(obs, args, is_np)
@@ -146,7 +158,7 @@ class OfflineDataset(Dataset):
 
 def get_offline_dataset(args):
     dt = OfflineDataset(parent_path=args.bc_dataset_path)
-    dt_loader = DataLoader(dataset=dt, batch_size=args.batch_size, shuffle=True, num_workers=8)
+    dt_loader = DataLoader(dataset=dt, batch_size=args.batch_size, shuffle=False, num_workers=8)
 
     # for obj in dt_loader:
     #     rgb = obj["rgb"]
@@ -157,15 +169,16 @@ def get_offline_dataset(args):
 
 def bc_train(env):
     args = get_args()
-    
+
     env_params = get_env_params(env)
     env_params["load_saved"] = True
     env_params["model_path"] = paths[args.env_name]['xarm'][args.task] + '/model.pt'
 
-    args.cuda = False
+    # if not args.scripted:
     state_based_model, _, _, _ = model_factory(task='sym_state', env_params=env_params)
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
+
     student_model, _, _, _ = model_factory(task='asym_goal_outside_image', env_params=env_params)
 
     obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
@@ -180,9 +193,9 @@ def bc_train(env):
 
     dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.Adam(params=student_model.parameters(), lr=0.01)
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.01)
 
-    scheduler = ReduceLROnPlateau(optimizer, 'min')
+    scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
 
     num_epochs = 500
     losses = []
@@ -191,10 +204,23 @@ def bc_train(env):
 
     if args.cuda:
         student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
-        state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
+        if not args.scripted:
+            state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
+    
+    if args.just_eval:
+        model_path = 'curr_bc_model.pt'
+        obj = torch.load(model_path, map_location=lambda storage, loc: storage)
+        student_model.load_state_dict(obj['actor_net'])
+
+    student_model.train()
+    # plot_model_stats(obj)
+
     print("start training")
     for ep in range(num_epochs):
         total_loss = 0
+        if args.just_eval:
+            while True:
+                succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
         # TODO:
         #add epoch init stuff here
         start = time.time()
@@ -220,14 +246,20 @@ def bc_train(env):
                 with torch.no_grad():
                     acts = state_based_model(state_based_input)
 
-           
+            # zero_inp = torch.zeros_like(obs_img)
+            # zero_g = torch.zeros_like(g_norm)
+            # z_s_b = torch.zeros_like(state_based_input)
+            # print(state_based_input)
             student_acts = student_model(obs_img, g_norm)
+            # print(acts, student_acts)
             # compute the loss
             loss = F.mse_loss(student_acts, acts)
 
             # step the loss
+            
             optimizer.zero_grad()
             loss.backward()
+            # plot_grad_flow(state_based_model.named_parameters())
             optimizer.step()
 
             total_loss += loss.item()
@@ -235,11 +267,13 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
-            
+            break
+        print(total_loss)
+        scheduler.step(total_loss)
+        continue 
         end = time.time()
         
         # run after every epoch
-        scheduler.step(total_loss)
 
         print(f"Epoch {ep} | Total time taken {end - start} | Loss {total_loss / len(dt_loader)}")
 
