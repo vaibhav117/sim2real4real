@@ -65,7 +65,7 @@ class asym_goal_outside_image(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        actions = self.max_action * torch.tanh(self.action_out(x))
+        #actions = self.max_action * torch.tanh(self.action_out(x))
 
         return self.action_out(x)
 
@@ -133,9 +133,9 @@ class sym_image(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        actions = self.max_action * torch.tanh(self.action_out(x))
+        #actions = self.max_action * torch.tanh(self.action_out(x))
 
-        return actions
+        return self.action_out(x)
 
 
 

@@ -7,6 +7,7 @@ from depth_tricks import create_point_cloud, create_point_cloud2
 import cv2 
 import imageio
 from rl_modules.utils import show_video
+from mpi4py import MPI
 
 def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
     
