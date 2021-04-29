@@ -6,6 +6,7 @@ from mpi4py import MPI
 from mujoco_py import MjRenderContextOffscreen
 from mujoco_py.modder import TextureModder
 import torch
+import torch.nn.functional as F
 
 def load_viewer(sim, device_id=MPI.COMM_WORLD.Get_rank()):
     viewer = MjRenderContextOffscreen(sim, device_id=device_id)
@@ -35,8 +36,8 @@ def use_real_depths_and_crop(rgb, depth, vis=False):
     depth = normalize_depth(depth)
     depth = (depth - 0.021) / (2.14 - 0.021)
     
-    depth = cv2.resize(depth[:, 10:80, 10:90], (100,100))
-    rgb = cv2.resize(rgb[:, 10:80, 10:90, :], (100,100))
+    depth = cv2.resize(depth[10:80, 10:90], (100,100))
+    rgb = cv2.resize(rgb[10:80, 10:90, :], (100,100))
     
     if vis:
         from depth_tricks import create_point_cloud
@@ -262,10 +263,11 @@ def _preproc_inputs_image_goal(obs, args, is_np):
             obs_img = obs_img.astype(np.float32)
             # obs_img = obs_img / 255 # normalize image data between 0 and 1
             obs_im, depth = use_real_depths_and_crop_np(obs_img, depth)
-            obs_img = np.concatenate((obs_im, depth), axis=3)
-            obs_img = torch.tensor(obs_img, dtype=torch.float32)
-            obs_img = obs_img.permute(0, 3, 1, 2)
-            print(obs_img.shape)
+            obs_im = torch.tensor(obs_im, dtype=torch.float32).permute(0, 3, 1, 2)
+            depth = torch.tensor(depth, dtype=torch.float32).permute(0, 3, 1, 2)
+            obs_im = F.interpolate(obs_im, size=(100,100))
+            depth = F.interpolate(depth, (100,100))
+            obs_img = torch.cat((obs_im, depth), axis=1)
     else:
         obs_img = torch.tensor(obs_img, dtype=torch.float32)
         obs_img = obs_img.permute(0, 3, 1, 2)

@@ -17,11 +17,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from rl_modules.utils import plot_grad_flow
 import time 
 import cv2
-<<<<<<< HEAD
 import matplotlib.pyplot as plt
-=======
 from mpi4py import MPI
->>>>>>> 22e8325f418a5933c0fcf2efa7fd9633f6d0abcb
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -178,11 +175,8 @@ def bc_train(env):
     env_params["load_saved"] = True
     env_params["model_path"] = paths[args.env_name]['xarm'][args.task] + '/model.pt'
 
-<<<<<<< HEAD
     # if not args.scripted:
-=======
     #args.cuda = True
->>>>>>> 22e8325f418a5933c0fcf2efa7fd9633f6d0abcb
     state_based_model, _, _, _ = model_factory(task='sym_state', env_params=env_params)
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
@@ -195,9 +189,6 @@ def bc_train(env):
     o_std = obj["o_std"]
     g_mean = obj["g_mean"]
     g_std = obj["g_std"]
-
-    #generate_dataset(state_based_model, obj, args)
-    #exit()
 
     dt_loader = get_offline_dataset(args)
 
@@ -260,6 +251,7 @@ def bc_train(env):
             # zero_g = torch.zeros_like(g_norm)
             # z_s_b = torch.zeros_like(state_based_input)
             # print(state_based_input)
+            print(obs_img.shape, g_norm.shape)
             student_acts = student_model(obs_img, g_norm)
             # print(acts, student_acts)
             # compute the loss
@@ -277,10 +269,10 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
-            break
+            
         print(total_loss)
         scheduler.step(total_loss)
-        continue 
+         
         end = time.time()
         
         # run after every epoch
