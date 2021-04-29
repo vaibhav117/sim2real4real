@@ -6,6 +6,7 @@ from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightM
 from depth_tricks import create_point_cloud, create_point_cloud2
 import cv2 
 import imageio
+from mpi4py import MPI
 
 def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
 
@@ -102,6 +103,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             # randomize_camera(viewer)
         
         max_steps = env._max_episode_steps
+        max_steps = 100
         for _ in range(max_steps):
             
             if args.randomize:
