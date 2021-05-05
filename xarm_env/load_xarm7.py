@@ -41,14 +41,17 @@ def robot_get_obs(sim):
         qposes = []
         qvels = []
 
-        for name in names:
+        for i, name in enumerate(names):
             if name == 'object0:joint':
                 b = sim.data.get_joint_qvel(name)
                 c = sim.data.get_joint_qpos(name)
+                # print(f"i : {i} | name {name} | shape: {b.shape}")
                 qvels.append(b.ravel())
                 qposes.append(c.ravel())
             else:
                 qvels.append(sim.data.get_joint_qvel(name).reshape(1))
+
+                # print(f"i : {i} | name {name} | shape: {1}")
                 qposes.append(sim.data.get_joint_qpos(name).reshape(1))
         
         qposes = np.concatenate(qposes)
@@ -327,6 +330,7 @@ class FetchEnv(RobotEnv):
     def _get_obs(self):
         # positions
         grip_pos = self.sim.data.get_site_xpos('ee')
+        grip_right_pos = self.sim.data.get_site_xpos('ee_2')
         dt = self.sim.nsubsteps * self.sim.model.opt.timestep
         #grip_velp = self.sim.data.get_site_xvelp('robot0:grip') * dt
         robot_qpos, robot_qvel = robot_get_obs(self.sim)
@@ -363,7 +367,7 @@ class FetchEnv(RobotEnv):
             ])
         else:
             obs = np.concatenate([
-                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), object_rot.ravel(), object_velp.ravel(), object_velr.ravel(), gripper_state,
+                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), object_rot.ravel(), object_velp.ravel(), object_velr.ravel(), gripper_state, grip_right_pos
             ])
             
 
@@ -404,7 +408,7 @@ class FetchEnv(RobotEnv):
                 # object_xpos = self.initial_gripper_xpos[:2] + np.asarray([0, 0])
             object_qpos = self.sim.data.get_joint_qpos('object0:joint')
             assert object_qpos.shape == (7,)
-            object_qpos[:2] = object_xpos
+            object_qpos[:2] = object_xpos # if x pos is < 0.9  < 1.8 then bad, 0.05 < y < 1.3
             self.sim.data.set_joint_qpos('object0:joint', object_qpos)
 
             # with 0.5 probability, set starting state of the robot gripper on top of the object
@@ -473,6 +477,14 @@ class FetchEnv(RobotEnv):
 
         # Extract information for sampling goals.
         self.initial_gripper_xpos = self.sim.data.get_site_xpos('ee').copy()
+
+        action = np.asarray([[0, 0, -0.15, 0, 0, 0, 0]])
+        mocap_set_action(self.sim, action)
+        self.sim.forward()
+
+        for i in range(50):
+            self.sim.step()
+
         # print(f"Initial gripper position {self.initial_gripper_xpos}")
         # exit()
         

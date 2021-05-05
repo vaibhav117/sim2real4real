@@ -70,7 +70,7 @@ def get_actor_critic_and_target_nets(actor_fn, critic_fn, env_params):
 
     actor_network = actor_fn(env_params)
     critic_network = critic_fn(env_params)
-    
+    print(env_params)
     if env_params["load_saved"] == True:
         print("Loading the actor/critic model from {}".format(env_params["model_path"]))
         obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))

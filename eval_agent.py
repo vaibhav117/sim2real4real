@@ -6,8 +6,9 @@ from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightM
 from depth_tricks import create_point_cloud, create_point_cloud2
 import cv2 
 import imageio
-from rl_modules.utils import show_video
+from rl_modules.utils import show_video, scripted_action
 from mpi4py import MPI
+import time
 
 def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
     
@@ -50,7 +51,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
 
     # pre_process the inputs
     def _preproc_inputs_state(obs, g):
-        print(obs.shape, obj['o_mean'].shape)
+        # print(obs.shape, obj['o_mean'].shape)
         obs_norm = np.clip((obs - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range).reshape(1,-1)
         g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
         # concatenate the stuffs
@@ -106,6 +107,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
         
         max_steps = env._max_episode_steps
         max_steps = 100
+        picked_object = False
         for _ in range(max_steps):
             
             if args.randomize:
@@ -115,22 +117,24 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
             save_obs_img, save_depth_image = use_real_depths_and_crop(obs_img, depth_image)
 
-            # display_state(obs_img)
+            display_state(obs_img)
             
             #pcd = create_point_cloud(save_obs_img, save_depth_image, fovy=45)
             #pcds.append(("none", pcd))
-          
-            if args.depth:
-                # create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
-                pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], depth=depth_image[:, :, np.newaxis])
-                actions = pi.detach().cpu().numpy().squeeze()
+            if args.scripted:
+                actions, picked_object = scripted_action(observation, picked_object)
             else:
-                with torch.no_grad():
-                    if task != 'sym_state':
-                        pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
-                    else:
-                        pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
+                if args.depth:
+                    # create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
+                    pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], depth=depth_image[:, :, np.newaxis])
                     actions = pi.detach().cpu().numpy().squeeze()
+                else:
+                    with torch.no_grad():
+                        if task != 'sym_state':
+                            pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                        else:
+                            pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
+                        actions = pi.detach().cpu().numpy().squeeze()
 
             observation_new, _, _, info = env.step(actions)
             rollout.append({
@@ -145,6 +149,37 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             observation = observation_new
             per_success_rate.append(info['is_success'])
 
+            print(observation["observation"][8])
+
+            # if robot is going into a position it cant recover from
+            if observation["observation"][8] < -0.45:
+                print("robot going into unrecoverable position")
+                break
+
+        picked_object = False
+        if info['is_success'] != 1:
+            print("running scripted policy")
+            display_state(np.zeros((100,100,3)))
+            time.sleep(1.0)
+
+            j = 0
+            k = 0
+            while (info['is_success'] != 1 or k < 10) and j < 200:
+                obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
+                display_state(obs_img)
+                actions, picked_object = scripted_action(observation, picked_object)
+                observation_new, _, _, info = env.step(actions)
+                env.render()
+                observation = observation_new
+                j += 1
+                if info['is_success'] == 1:
+                    k += 1
+            
+            print(f"Was scripted poliocy succ ? : {info['is_success']}")
+            # display_state(np.ones((100,100,3)))
+
+            
+
         # # hide under a flag
         # if args.record:
         #     frames = [r["obs_img"] for r in rollout]
@@ -157,6 +192,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
         rollouts.append(rollout)
         
     total_success_rate = np.array(total_success_rate)
+    print(total_success_rate, total_success_rate.shape)
     local_success_rate = np.mean(total_success_rate[:, -1])
 
     if args.record:
