@@ -351,10 +351,17 @@ def dagger():
         k = 0
         ended = True
         m = 0
+
         distances = []
+        states = []
+        rgbs = []
+        deps = []
+        actions = []
+        observations = []
+
         while (not is_succ) or k < 50:
             j += 1
-            # rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
+            rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
             # rgb, depth = use_real_depths_and_crop(rgb, depth)
             # show_video(rgb)
             # print(obs["observation"][:3])
@@ -368,12 +375,15 @@ def dagger():
             else:
                 act = np.asarray([-1, 0, 0, 0])
 
+            
+
             obs,  r, _, infor = env.step(act)
             
             left_gripper = obs['observation'][:3]
             right_gripper = obs['observation'][-3:]
             distances.append(abs(right_gripper[1] - left_gripper[1]))
             # print(abs(right_gripper[1] - left_gripper[1]))
+
             if infor['is_success'] != 1:
                 k = 0
             else:
@@ -383,11 +393,16 @@ def dagger():
 
             m += 1
 
+            rgbs.append(rgb)
+            depths.append(dep)
+            actions.append(act)
+            observations.append(obs)
+
             if out_of_bounds(obs):
                 print("object out of bounds, ending episode...")
                 break
 
-            show_big_ball(env, obs['observation'][-3:])
+            # show_big_ball(env, obs['observation'][-3:])
             
             if m > 500:
                 print("episode is too long, breaking...")
