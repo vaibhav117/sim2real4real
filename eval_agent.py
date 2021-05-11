@@ -61,6 +61,8 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
     def get_policy(obs_img, g, obs=None, depth=None):
         if task == "sym_state":
             inputs = _preproc_inputs_state(obs, g)
+            if args.cuda:
+                inputs = inputs.cuda(MPI.COMM_WORLD.Get_rank())
             pi = loaded_model(inputs)
             return pi
         if task == "asym_goal_outside_image":

@@ -84,25 +84,16 @@ def generate_dataset(state_based_model, obj, args):
     os.system(f"rm -rf {parent_path}")
     # creating dataset folder
     os.system(f"mkdir {parent_path}")
-    num_episodes = 4000
+    num_episodes = 2000
     for j in range(num_episodes):
         obs = env.reset()
         picked_object = False
-        last_two = []
         for i in range(100): # more needed for pick and place
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
-            if len(last_two) == 0:
-                last_two.append(rgb.copy())
-                last_two.append(rgb.copy())
-                last_two.append(rgb)
-            else:
-                last_two = last_two[1:]
-                last_two.append(rgb)
+
             # sampling policy used saved model ?
             obs["rgb"] = rgb
             obs["dep"] = dep
-            obs["last_two"] = np.stack(last_two)
-
             if args.scripted:
                 actions, picked_object = scripted_action(obs, picked_object)
             else:
@@ -181,8 +172,8 @@ def bc_train(env):
     args = get_args()
 
     env_params = get_env_params(env)
-    env_params["load_saved"] = True
-    env_params["model_path"] = paths[args.env_name]['xarm'][args.task] + '/model.pt'
+    env_params["load_saved"] = False
+    env_params["model_path"] = paths[args.env_name]['xarm']['sym_state'] + '/model.pt'
 
     # if not args.scripted:
     #args.cuda = True
@@ -190,7 +181,7 @@ def bc_train(env):
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
 
-    student_model, _, _, _ = model_factory(task='asym_goal_outside_image', env_params=env_params)
+    student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
 
     obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
 
@@ -260,7 +251,10 @@ def bc_train(env):
             # zero_g = torch.zeros_like(g_norm)
             # z_s_b = torch.zeros_like(state_based_input)
             # print(state_based_input)
-            student_acts = student_model(obs_img, g_norm)
+            if args.task != 'sym_state':
+                student_acts = student_model(obs_img, g_norm)
+            else:
+                student_acts = student_model(state_based_input)
             # print(acts, student_acts)
             # compute the loss
             loss = F.mse_loss(student_acts, acts)
@@ -278,7 +272,6 @@ def bc_train(env):
             # TODO: add plotting for training
             losses.append(loss.item())
             
-        print(total_loss)
         scheduler.step(total_loss)
          
         end = time.time()
@@ -294,8 +287,8 @@ def bc_train(env):
         else:
             args.record = False
         
-        #succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
-        succ_rate = 0
+        succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task=args.task)
+        #succ_rate = 0
         rewards.append(succ_rate)
         save_dict = {
             'actor_net': student_model.state_dict(),
@@ -334,5 +327,5 @@ def create_off_dataset():
 
     generate_dataset(None, None, args)
 
-#bc_train(env)
-create_off_dataset()
+bc_train(env)
+# create_off_dataset()
