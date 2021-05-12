@@ -1,8 +1,9 @@
 from rl_modules.utils import use_real_depths_and_crop
 from xarm_env.load_xarm7 import FetchEnv
 from gym import utils as utz
-from rl_modules.utils import load_viewer, show_video, randomize_textures, get_texture_modder, load_viewer_to_env, use_real_depths_and_crop
+from rl_modules.utils import load_viewer, show_video, randomize_textures, get_texture_modder, load_viewer_to_env, use_real_depths_and_crop, scripted_action
 import numpy as np
+import matplotlib.pyplot as plt
 
 class XarmFetchPickPlaceEnv(FetchEnv, utz.EzPickle):
     def __init__(self, xml_path='assets/fetch/pick_and_place_xarm.xml', reward_type='sparse'):
@@ -82,47 +83,22 @@ def show_big_ball(env, pos):
     env.sim.forward()
     # env.sim.step()
 
+def out_of_bounds(obs):
+    '''
+    Return true if object is out of bounds from robot reach
+    '''
+    #if x pos is < 0.9  < 1.8 then bad, 0.05 < y < 1.3
+    object_pos = obs['observation'][3:6]
+    x = object_pos[0]
+    y = object_pos[1]
 
-def scripted_action(obs, picked_object):
-    if not picked_object:
-        if abs(obs["observation"][6]) > 0.001 or abs(obs["observation"][7] - 0.02) > 0.001:
-            # print("X")
-            action = np.asarray([obs["observation"][6], obs["observation"][7] - 0.02, 0]) * 50
-            b = np.asarray((-1)).reshape((1))
-            action = np.concatenate((action, b), axis=0)
-            return action, False
-
-        # if abs(obs["observation"][7] - 0.02) > 0.001:
-        #     print("Y")
-        #     y_act = obs["observation"][7] - 0.02  
-        #     action = np.asarray([0, y_act, 0]) * 10
-        #     b = np.asarray((-1)).reshape((1))
-        #     action = np.concatenate((action, b), axis=0)
-        #     return action, False
-        
-        if abs(obs["observation"][8]) > 0.001:
-            # print("Z")
-            action = np.asarray([0, 0, obs["observation"][8]]) * 50
-            b = np.asarray((-1)).reshape((1))
-            action = np.concatenate((action, b), axis=0)
-            return action, False
-
-    if abs(obs["observation"][7]) > 0.017:
-        # print("close gripper")
-        action = np.asarray([0, 0, 0, 1])
-        return action, True
-
-    # print("go towards goal")
-    desired_goal = obs["desired_goal"]  # place of goal
-    achieved_goal = obs["achieved_goal"] # actual goal
-
-    action = desired_goal - achieved_goal
-    scaler = 50
-    action = np.asarray([action[0]*scaler, action[1]*scaler, action[2]*scaler, 1])
-
-    return action, True
-
-
+    if x < 0.9 or x >= 1.75:
+        return True
+    
+    if y < 0.05 or y > 1.25:
+        return True
+    
+    return False
 
 def test_scripted_policy():
     env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
@@ -136,14 +112,56 @@ def test_scripted_policy():
         pick_object = False
         r = -1
         j = 0
-        for i in range(60):
+        is_succ = 0
+        k = 0
+        ended = True
+        m = 0
+        distances = []
+        while (not is_succ) or k < 50:
             j += 1
-            rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
-            rgb, depth = use_real_depths_and_crop(rgb, depth)
-            show_video(rgb)
-            act, pick_object = scripted_action(obs, pick_object) 
-            # env.render()
-            obs,  r, _, infor = env.step(act)
-        print(j)
+            # rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
+            # rgb, depth = use_real_depths_and_crop(rgb, depth)
+            # show_video(rgb)
+            # print(obs["observation"][:3])
+            
+            act, pick_object = scripted_action(obs, pick_object)
+            
+            env.render()
+            if ended or obs["observation"][0] < 1.1:
+                ended = True
+                act, pick_object = scripted_action(obs, pick_object) 
+            else:
+                act = np.asarray([-1, 0, 0, 0])
 
-# test_scripted_policy()
+            obs,  r, _, infor = env.step(act)
+            
+            left_gripper = obs['observation'][:3]
+            right_gripper = obs['observation'][-3:]
+            distances.append(abs(right_gripper[1] - left_gripper[1]))
+            # print(abs(right_gripper[1] - left_gripper[1]))
+            if infor['is_success'] != 1:
+                k = 0
+            else:
+                k += 1
+
+            is_succ = infor['is_success']
+
+            m += 1
+
+            if out_of_bounds(obs):
+                print("object out of bounds, ending episode...")
+                break
+
+            show_big_ball(env, obs['observation'][-3:])
+            
+            if m > 500:
+                print("episode is too long, breaking...")
+                break
+
+        # plt.plot(np.arange(len(distances)), distances, color='red')
+        # plt.show()
+        print(is_succ)
+# z = 0.7
+# 0 < y < 1.2
+# 1.1 < x < 1.7
+test_scripted_policy()

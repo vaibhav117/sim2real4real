@@ -62,8 +62,8 @@ def plot_model_stats(obj):
     rew_asym = obj["reward_plots"]
     # two = len(obj['losses']) / len(obj['reward_plots'])
     # plt.plot(np.arange(len(rew_asym)), rew_asym, color='red')
-    plt.plot(np.arange(len(obj["losses"][10:])), obj["losses"][10:], color='red')
-    # plt.plot(np.arange(len(obj['actor_losses'])), obj['actor_losses'], color='blue')
+    # plt.plot(np.arange(len(obj["losses"][10:])), obj["losses"][10:], color='red')
+    plt.plot(np.arange(len(obj['reward_plots'])), obj['reward_plots'], color='blue')
     plt.show()
     exit()
 
@@ -181,8 +181,8 @@ def bc_train(env):
     args = get_args()
 
     env_params = get_env_params(env)
-    env_params["load_saved"] = True
-    env_params["model_path"] = paths[args.env_name]['xarm'][args.task] + '/model.pt'
+    env_params["load_saved"] = False
+    env_params["model_path"] = paths[args.env_name]['xarm']['sym_state'] + '/model.pt'
 
     # if not args.scripted:
     #args.cuda = True
@@ -190,7 +190,8 @@ def bc_train(env):
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
 
-    student_model, _, _, _ = model_factory(task='asym_goal_outside_image', env_params=env_params)
+    student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
+    print(student_model)
 
     obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
 
@@ -216,19 +217,28 @@ def bc_train(env):
             state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
     
     if args.just_eval:
-        model_path = 'curr_bc_model.pt'
+        # model_path = 'best_bc_model.pt'
+        # model_path = 'curr_img_model.pt'
+        model_path = 'curr_rgb_model.pt'
         obj = torch.load(model_path, map_location=lambda storage, loc: storage)
         student_model.load_state_dict(obj['actor_net'])
 
     student_model.train()
+    
     # plot_model_stats(obj)
     rand_i = str(np.random.uniform(0,1))
     print(f"start training for {rand_i}")
     for ep in range(num_epochs):
         total_loss = 0
         if args.just_eval:
-            while True:
-                succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
+            succ_rates = []
+            for i in range(20):
+                succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task=args.task)
+                succ_rates.append(succ_rate)
+            plt.plot(np.arange(len(succ_rates)), succ_rates, color='red')
+            plt.show()
+            exit()
+
         # TODO:
         #add epoch init stuff here
         start = time.time()
@@ -260,7 +270,10 @@ def bc_train(env):
             # zero_g = torch.zeros_like(g_norm)
             # z_s_b = torch.zeros_like(state_based_input)
             # print(state_based_input)
-            student_acts = student_model(obs_img, g_norm)
+            if args.task != 'sym_state':
+                student_acts = student_model(obs_img, g_norm)
+            else:
+                student_acts = student_model(state_based_input)
             # print(acts, student_acts)
             # compute the loss
             loss = F.mse_loss(student_acts, acts)
@@ -294,8 +307,7 @@ def bc_train(env):
         else:
             args.record = False
         
-        #succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task='asym_goal_outside_image')
-        succ_rate = 0
+        succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task=args.task)
         rewards.append(succ_rate)
         save_dict = {
             'actor_net': student_model.state_dict(),
@@ -328,6 +340,85 @@ def bc_train(env):
 
     #         display_state(obs)
     #         obs = new_obs
+
+
+def dagger():
+    env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
+
+    env = load_viewer_to_env(env)
+    modder = get_texture_modder(env)
+
+    num_steps = 50
+    while True:
+        obs = env.reset()
+        pick_object = False
+        r = -1
+        j = 0
+        is_succ = 0
+        k = 0
+        ended = True
+        m = 0
+
+        distances = []
+        states = []
+        rgbs = []
+        deps = []
+        actions = []
+        observations = []
+
+        while (not is_succ) or k < 50:
+            j += 1
+            rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
+            # rgb, depth = use_real_depths_and_crop(rgb, depth)
+            # show_video(rgb)
+            # print(obs["observation"][:3])
+            
+            act, pick_object = scripted_action(obs, pick_object)
+            
+            env.render()
+            if ended or obs["observation"][0] < 1.1:
+                ended = True
+                act, pick_object = scripted_action(obs, pick_object) 
+            else:
+                act = np.asarray([-1, 0, 0, 0])
+
+            
+
+            obs,  r, _, infor = env.step(act)
+            
+            left_gripper = obs['observation'][:3]
+            right_gripper = obs['observation'][-3:]
+            distances.append(abs(right_gripper[1] - left_gripper[1]))
+            # print(abs(right_gripper[1] - left_gripper[1]))
+
+            if infor['is_success'] != 1:
+                k = 0
+            else:
+                k += 1
+
+            is_succ = infor['is_success']
+
+            m += 1
+
+            rgbs.append(rgb)
+            depths.append(dep)
+            actions.append(act)
+            observations.append(obs)
+
+            if out_of_bounds(obs):
+                print("object out of bounds, ending episode...")
+                break
+
+            # show_big_ball(env, obs['observation'][-3:])
+            
+            if m > 500:
+                print("episode is too long, breaking...")
+                break
+
+        # plt.plot(np.arange(len(distances)), distances, color='red')
+        # plt.show()
+        print(is_succ)
+
 
 def create_off_dataset():
     args = get_args()
