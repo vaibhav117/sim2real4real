@@ -226,11 +226,26 @@ def out_of_bounds(obs):
     x = object_pos[0]
     y = object_pos[1]
 
+    gripper_x = obs['observation'][0]
+    gripper_y = obs['observation'][1]
+    gripper_z = obs['observation'][2]
+
+    # print(gripper_x, gripper_y, gripper_z)
+
     if x < 0.9 or x >= 1.75:
         return True
     
     if y < 0.05 or y > 1.25:
         return True
+
+    if gripper_x < 0.9 or gripper_x >= 1.75:
+        return True
+    
+    if gripper_y < 0.05 or gripper_y > 1.25:
+        return True
+    
+    if gripper_z > 0.5:
+        return True 
     
     return False
 

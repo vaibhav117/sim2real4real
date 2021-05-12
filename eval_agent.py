@@ -127,20 +127,20 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             
             #pcd = create_point_cloud(save_obs_img, save_depth_image, fovy=45)
             #pcds.append(("none", pcd))
-            if args.scripted:
-                actions, picked_object = scripted_action(observation, picked_object)
+            # if args.scripted:
+            #     actions, picked_object = scripted_action(observation, picked_object)
+            # else:
+            if args.depth:
+                # create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
+                pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], depth=depth_image[:, :, np.newaxis])
+                actions = pi.detach().cpu().numpy().squeeze()
             else:
-                if args.depth:
-                    # create_point_cloud(env, dep_img=depth_image, col_img=obs_img)
-                    pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :], depth=depth_image[:, :, np.newaxis])
+                with torch.no_grad():
+                    if task != 'sym_state':
+                        pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
+                    else:
+                        pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
                     actions = pi.detach().cpu().numpy().squeeze()
-                else:
-                    with torch.no_grad():
-                        if task != 'sym_state':
-                            pi = get_policy(obs_img.copy()[np.newaxis, :], g[np.newaxis, :])
-                        else:
-                            pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
-                        actions = pi.detach().cpu().numpy().squeeze()
 
             observation_new, _, _, info = env.step(actions)
             rollout.append({
@@ -156,11 +156,11 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             per_success_rate.append(info['is_success'])
 
             # if robot is going into a position it cant recover from
-            if observation["observation"][8] < -0.45:
-                print("robot going into unrecoverable position")
-                break
+            # if observation["observation"][8] < -0.45:
+            #     print("robot going into unrecoverable position")
+            #     break
 
-        picked_object = False
+        # picked_object = False
         # if info['is_success'] != 1:
         #     print("running scripted policy")
         #     display_state(np.zeros((100,100,3)))

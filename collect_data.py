@@ -53,7 +53,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -412,7 +412,8 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
         end = time.time()
 
         # run after every epoch
-        print(f"-----------Epoch {ep+update_step} | Loss {total_loss / len(dt_loader)} | length of dataset: {len(dt_loader)}-----------")
+        if len(dt_loader) != 0:
+            print(f"-----------Epoch {(ep*args.n_batches)+update_step} | Loss {total_loss / len(dt_loader)} | length of dataset: {len(dt_loader) * args.n_batches}-----------")
 
     return loaded_net, scheduler, optimizer, losses
 
@@ -463,7 +464,7 @@ def dagger():
     rewards = []
     #########
     ep = 0
-    max_ep_len = 1
+    max_ep_len = 500
     while True:
         obs = env.reset()
 
@@ -493,14 +494,14 @@ def dagger():
             act, pick_object = scripted_action(obs, pick_object)
 
             if args.task != 'sym_state':
-                student_acts = student_model(obs_img, g_norm).detach().cpu().numpy()
+                student_acts = student_model(obs_img, g_norm).detach().cpu().numpy().reshape((4))
             else:
-                student_acts = student_model(state_based_input).detach().cpu().numpy()
+                student_acts = student_model(state_based_input).detach().cpu().numpy().reshape((4))
             
             obs['actions'] = act
             observations.append(obs)
 
-            obs, _, _, infor = env.step(student_acts.reshape((4)))
+            obs, _, _, infor = env.step(student_acts)
             
             if infor['is_success'] != 1:
                 since_success = 0
@@ -514,9 +515,7 @@ def dagger():
             if out_of_bounds(obs):
                 break
 
-        ep += 1
-
-        print(is_succ)
+        # print(is_succ)
         if not is_succ:
             add_to_dataset(ep, observations, args.bc_dataset_path)
 
@@ -526,23 +525,30 @@ def dagger():
         # succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
 
         # print(f"Epoch: {ep} | Success Rate right now: {succ_rate}")
+        succ_rate = 0
 
-        # rewards.append(succ_rate)
-        # save_dict = {
-        #     'actor_net': student_model.state_dict(),
-        #     'o_mean': obj["o_mean"],
-        #     'o_std': obj["o_std"],
-        #     'g_mean': obj["g_mean"],
-        #     'g_std': obj["g_std"],
-        #     'reward_plots': rewards,
-        #     'losses': losses,
-        # }
+        rewards.append(succ_rate)
+        save_dict = {
+            'actor_net': student_model.state_dict(),
+            'o_mean': obj["o_mean"],
+            'o_std': obj["o_std"],
+            'g_mean': obj["g_mean"],
+            'g_std': obj["g_std"],
+            'reward_plots': rewards,
+            'losses': losses,
+        }
 
         # if succ_rate >= best_succ_rate:
         #     torch.save(save_dict, f"best_bc_model_{rand_i}.pt")
         #     best_succ_rate = succ_rate
         # else:
         #     torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
+        if ep % 100 == 0:
+            succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
+            print(f"Evaluating Model: Success Rate {succ_rate}")
+
+        ep += 1
+        torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
 
 
 
