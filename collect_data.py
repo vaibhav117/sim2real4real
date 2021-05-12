@@ -413,7 +413,7 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
 
         # run after every epoch
         if len(dt_loader) != 0:
-            print(f"-----------Epoch {(ep*args.n_batches)+update_step} | Loss {total_loss / len(dt_loader)} | length of dataset: {len(dt_loader) * args.n_batches}-----------")
+            print(f"-----------Epoch {(ep*args.n_batches)+update_step} | Loss {total_loss / len(dt_loader)} | length of dataset: {len(dt_loader) * args.batch_size}-----------")
 
     return loaded_net, scheduler, optimizer, losses
 
