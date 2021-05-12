@@ -6,7 +6,7 @@ import datetime
 from torch.utils.data import Dataset, DataLoader
 import os 
 from rl_modules.ddpg_agent import model_factory
-from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action, show_video
+from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action, show_video, randomize_textures, get_texture_modder, out_of_bounds
 from arguments import get_args
 import torch
 import torch.nn.functional as F
@@ -19,6 +19,8 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 from mpi4py import MPI
+from arguments import get_args
+
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -72,11 +74,19 @@ def get_policy(model, obs, args, is_np=True):
     return model(state_input).detach().cpu().numpy().squeeze()
 
 
-def save_image(j, obs, parent_path):
+def save_image(j, obs, parent_path, verbose=False):
     outfile = join(parent_path, str(datetime.datetime.now()))
     np.save(outfile, obs)
-    print(f"{j} file saved to {outfile}")
+    if verbose:
+        print(f"{j} file saved to {outfile}")
 
+
+def check_if_dataset_folder_exists(args):
+    parent_path = args.bc_dataset_path
+    # Deleting dataset folder
+    os.system(f"rm -rf {parent_path}")
+    # creating dataset folder
+    os.system(f"mkdir {parent_path}")
 
 def generate_dataset(state_based_model, obj, args):
     parent_path = args.bc_dataset_path
@@ -151,8 +161,9 @@ class OfflineDataset(Dataset):
         with open(file_path, "rb") as f:
             obj = np.load(f, allow_pickle=True)
         d = obj[()]
+        # d = copy.deepcopy(d)
         d["actions"] = d["actions"].astype(np.float32)
-        # print(d.items())
+        # print(d.keys())
         return d
         
         # return torch.randn((1,400,400))
@@ -175,14 +186,11 @@ def bc_train(env):
     env_params["load_saved"] = False
     env_params["model_path"] = paths[args.env_name]['xarm']['sym_state'] + '/model.pt'
 
-    # if not args.scripted:
-    #args.cuda = True
     state_based_model, _, _, _ = model_factory(task='sym_state', env_params=env_params)
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
 
     student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
-    print(student_model)
 
     obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
 
@@ -335,82 +343,200 @@ def bc_train(env):
     #         obs = new_obs
 
 
-def dagger():
-    env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
+def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, losses):
 
+    dt_loader = get_offline_dataset(args)
+
+    num_epochs = 500
+    rewards = []
+    best_succ_rate = 0
+
+    if args.cuda:
+        loaded_net = loaded_net.cuda(MPI.COMM_WORLD.Get_rank())
+        if not args.scripted:
+            state_based_model = state_based_model.cuda(MPI.COMM_WORLD.Get_rank())
+
+    loaded_net.train()
+    # plot_model_stats(obj)
+    for update_step in range(args.n_batches):
+        total_loss = 0
+        start = time.time()
+        for idx, dt in enumerate(dt_loader):
+
+            dt["obj"] = obj
+            obs_state = dt["observation"]
+            g = dt["desired_goal"].to(torch.float32)
+
+            # TODO normalize
+            obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(dt, args, is_np=False)
+
+            if args.scripted:
+                with torch.no_grad():
+                    acts = dt["actions"].clone().detach()
+                    if args.cuda:
+                        acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
+            else:
+                with torch.no_grad():
+                    acts = loaded_net(state_based_input)
+
+            
+            if args.task != 'sym_state':
+                student_acts = loaded_net(obs_img, g_norm)
+            else:
+                student_acts = loaded_net(state_based_input)
+            # compute the loss
+            # print(acts[0], student_acts[0])
+
+            loss = F.mse_loss(student_acts, acts)
+
+            # step the loss
+            optimizer.zero_grad()
+            loss.backward()
+            # plot_grad_flow(state_based_model.named_parameters())
+            optimizer.step()
+
+            total_loss += loss.item()
+
+            # TODO: add plotting for training
+            losses.append(loss.item())
+
+        # scheduler.step(total_loss)
+
+        end = time.time()
+
+        # run after every epoch
+        print(f"-----------Epoch {ep+update_step} | Loss {total_loss / len(dt_loader)} | length of dataset: {len(dt_loader)}-----------")
+
+    return loaded_net, scheduler, optimizer, losses
+
+
+def add_to_dataset(ep, observations, parent_path):
+    for i in range(len(observations)):
+        # obs = {}
+        # obs["rgb"] = rgbs[i]
+        # obs["dep"] = depths[i]
+        # obs["actions"] = actions[i]
+        # for k in observations[i].keys():
+        #     obs[k] = observations[i][k]
+        del observations[i]['obj']
+        # print(observations[i].keys())
+        save_image(ep, observations[i], parent_path)
+
+
+def dagger():
+
+    rand_i = str(np.random.uniform(0,1))
+    print(f"start training for {rand_i}")
+    env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
     env = load_viewer_to_env(env)
     modder = get_texture_modder(env)
+    args = get_args()
+    env_params = get_env_params(env)
+    best_succ_rate = 0
 
-    num_steps = 50
+    check_if_dataset_folder_exists(args)
+
+    ######## get model stuff
+    env_params["depth"] = args.depth
+    env_params["load_saved"] = False
+    env_params["model_path"] = paths['FetchPickAndPlace-v1']['xarm']['sym_state'] + '/model.pt'
+
+    student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
+
+    # get model object mean/std stats
+    obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
+
+    ######### optimizer and scheduler
+    # dt_loader = get_offline_dataset(args)
+
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.01)
+
+    scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
+    losses = []
+    rewards = []
+    #########
+    ep = 0
+    max_ep_len = 1
     while True:
         obs = env.reset()
-        pick_object = False
-        r = -1
-        j = 0
-        is_succ = 0
-        k = 0
-        ended = True
-        m = 0
 
+        # some episodic book keeping
+        pick_object = False
+        is_succ = 0
+        since_success = 0
+        use_scripted = True
+        ep_len = 0
         distances = []
         states = []
         rgbs = []
-        deps = []
+        depths = []
         actions = []
         observations = []
 
-        while (not is_succ) or k < 50:
-            j += 1
+        # episode run
+        while ((not is_succ) or since_success < 50) and ep_len < max_ep_len:
             rgb, depth = env.render(mode='rgb_array', depth=True, height=100, width=100)
-            # rgb, depth = use_real_depths_and_crop(rgb, depth)
-            # show_video(rgb)
-            # print(obs["observation"][:3])
             
+            obs["rgb"] = rgb
+            obs["dep"] = depth
+            obs["obj"] = obj
+            obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(obs, args, is_np=True)
+            
+            # env.render()
             act, pick_object = scripted_action(obs, pick_object)
-            
-            env.render()
-            if ended or obs["observation"][0] < 1.1:
-                ended = True
-                act, pick_object = scripted_action(obs, pick_object) 
+
+            if args.task != 'sym_state':
+                student_acts = student_model(obs_img, g_norm).detach().cpu().numpy()
             else:
-                act = np.asarray([-1, 0, 0, 0])
-
+                student_acts = student_model(state_based_input).detach().cpu().numpy()
             
+            obs['actions'] = act
+            observations.append(obs)
 
-            obs,  r, _, infor = env.step(act)
+            obs, _, _, infor = env.step(student_acts.reshape((4)))
             
-            left_gripper = obs['observation'][:3]
-            right_gripper = obs['observation'][-3:]
-            distances.append(abs(right_gripper[1] - left_gripper[1]))
-            # print(abs(right_gripper[1] - left_gripper[1]))
-
             if infor['is_success'] != 1:
-                k = 0
+                since_success = 0
             else:
-                k += 1
+                since_success += 1
 
             is_succ = infor['is_success']
 
-            m += 1
-
-            rgbs.append(rgb)
-            depths.append(dep)
-            actions.append(act)
-            observations.append(obs)
+            ep_len += 1
 
             if out_of_bounds(obs):
-                print("object out of bounds, ending episode...")
                 break
 
-            # show_big_ball(env, obs['observation'][-3:])
-            
-            if m > 500:
-                print("episode is too long, breaking...")
-                break
+        ep += 1
 
-        # plt.plot(np.arange(len(distances)), distances, color='red')
-        # plt.show()
         print(is_succ)
+        if not is_succ:
+            add_to_dataset(ep, observations, args.bc_dataset_path)
+
+        # train for 1 epoch
+        student_model, scheduler, optimizer, losses = train_1_epoch(ep, env, obj, args, student_model, scheduler, optimizer, rand_i, losses)
+
+        # succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
+
+        # print(f"Epoch: {ep} | Success Rate right now: {succ_rate}")
+
+        # rewards.append(succ_rate)
+        # save_dict = {
+        #     'actor_net': student_model.state_dict(),
+        #     'o_mean': obj["o_mean"],
+        #     'o_std': obj["o_std"],
+        #     'g_mean': obj["g_mean"],
+        #     'g_std': obj["g_std"],
+        #     'reward_plots': rewards,
+        #     'losses': losses,
+        # }
+
+        # if succ_rate >= best_succ_rate:
+        #     torch.save(save_dict, f"best_bc_model_{rand_i}.pt")
+        #     best_succ_rate = succ_rate
+        # else:
+        #     torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
+
 
 
 def create_off_dataset():
@@ -418,5 +544,6 @@ def create_off_dataset():
 
     generate_dataset(None, None, args)
 
-bc_train(env)
+# bc_train(env)
 # create_off_dataset()
+dagger()

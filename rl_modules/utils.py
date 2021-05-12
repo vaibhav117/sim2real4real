@@ -217,6 +217,23 @@ def get_env_params(env):
     return params
 
 
+def out_of_bounds(obs):
+    '''
+    Return true if object is out of bounds from robot reach
+    '''
+    #if x pos is < 0.9  < 1.8 then bad, 0.05 < y < 1.3
+    object_pos = obs['observation'][3:6]
+    x = object_pos[0]
+    y = object_pos[1]
+
+    if x < 0.9 or x >= 1.75:
+        return True
+    
+    if y < 0.05 or y > 1.25:
+        return True
+    
+    return False
+
 # pre_process the inputs
 def _preproc_inputs_state(obs, args, is_np):
     obj = obs["obj"]
@@ -227,9 +244,12 @@ def _preproc_inputs_state(obs, args, is_np):
         obs_state = obs["observation"].numpy()
         g = obs["desired_goal"].numpy()
 
-    obs_norm = np.clip((obs_state - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range)
-    g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+    # obs_norm = np.clip((obs_state - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range)
+    # g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
     # concatenate the stuffs
+
+    obs_norm = obs_state
+    g_norm = g
 
     inputs = np.concatenate([obs_norm, g_norm], axis=1)
     if is_np:

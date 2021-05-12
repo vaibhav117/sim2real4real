@@ -164,4 +164,4 @@ def test_scripted_policy():
 # z = 0.7
 # 0 < y < 1.2
 # 1.1 < x < 1.7
-test_scripted_policy()
+# test_scripted_policy()
