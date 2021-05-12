@@ -53,7 +53,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
