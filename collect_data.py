@@ -451,6 +451,9 @@ def dagger():
 
     student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
 
+    if args.cuda:
+        student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
+
     # get model object mean/std stats
     obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
 
