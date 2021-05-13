@@ -460,7 +460,7 @@ def dagger():
     ######### optimizer and scheduler
     # dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.01)
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.001)
 
     scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
     losses = []
@@ -493,7 +493,7 @@ def dagger():
             obs["obj"] = obj
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(obs, args, is_np=True)
             g_norm = g_norm.squeeze(0)
-            print(obs_img.shape, g_norm.shape) 
+            #print(obs_img.shape, g_norm.shape) 
             # env.render()
             act, pick_object = scripted_action(obs, pick_object)
 
