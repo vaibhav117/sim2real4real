@@ -492,7 +492,8 @@ def dagger():
             obs["dep"] = depth
             obs["obj"] = obj
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(obs, args, is_np=True)
-            
+            g_norm = g_norm.squeeze(0)
+            print(obs_img.shape, g_norm.shape) 
             # env.render()
             act, pick_object = scripted_action(obs, pick_object)
 
