@@ -53,7 +53,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -379,7 +379,7 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
 
             if args.scripted:
                 with torch.no_grad():
-                    acts = dt["actions"].clone().detach()
+                    acts = scripted_action(obs_state, picked_object=dt["pick_object"])
                     if args.cuda:
                         acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
             else:
@@ -491,6 +491,7 @@ def dagger():
             obs["rgb"] = rgb
             obs["dep"] = depth
             obs["obj"] = obj
+            obs["pick_object"] = pick_object
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(obs, args, is_np=True)
             g_norm = g_norm.squeeze(0)
             #print(obs_img.shape, g_norm.shape) 
