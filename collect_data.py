@@ -392,8 +392,8 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
             else:
                 student_acts = loaded_net(state_based_input)
             
-            print(acts[0])
-            print(student_acts[0])
+            # print(acts[0])
+            # print(student_acts[0])
             # compute the loss
             # print(acts[0], student_acts[0])
 
@@ -445,7 +445,7 @@ def dagger():
     env_params = get_env_params(env)
     best_succ_rate = 0
 
-    #check_if_dataset_folder_exists(args)
+    check_if_dataset_folder_exists(args)
 
     ######## get model stuff
     env_params["depth"] = args.depth
@@ -457,7 +457,8 @@ def dagger():
 
     # get model object mean/std stats
     #obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
-    obj = torch.load('curr_bc_model_0.6380849388222776.pt', map_location=torch.device('cpu'))
+    # obj = torch.load('curr_bc_model_0.6380849388222776.pt', map_location=torch.device('cpu'))
+    obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
     student_model.load_state_dict(obj['actor_net'])
 
     if args.cuda:
@@ -465,7 +466,7 @@ def dagger():
     ######### optimizer and scheduler
     # dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.0001)
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.001)
 
     scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
     losses = []
@@ -480,13 +481,8 @@ def dagger():
         pick_object = False
         is_succ = 0
         since_success = 0
-        use_scripted = True
         ep_len = 0
-        distances = []
-        states = []
-        rgbs = []
-        depths = []
-        actions = []
+        
         observations = []
 
         # episode run
@@ -503,6 +499,7 @@ def dagger():
 
             # display_state(obs)
             # env.render()
+            # time.sleep(0.1)
             act, pick_object = scripted_action(obs, pick_object)
 
             if args.task != 'sym_state':
@@ -525,11 +522,15 @@ def dagger():
             ep_len += 1
 
             if out_of_bounds(obs):
+                print("going out of bounds !")
                 break
 
+        print(is_succ, len(observations))
         # print(is_succ)
         if not is_succ:
             add_to_dataset(ep, observations, args.bc_dataset_path)
+        else:
+            continue
 
         # train for 1 epoch
         student_model, scheduler, optimizer, losses = train_1_epoch(ep, env, obj, args, student_model, scheduler, optimizer, rand_i, losses)
@@ -555,9 +556,10 @@ def dagger():
         #     best_succ_rate = succ_rate
         # else:
         #     torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
-        if ep % 100 == 0:
+        if ep % 10 == 0:
             succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
             print(f"Evaluating Model: Success Rate {succ_rate}")
+            exit()
 
         ep += 1
         torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
