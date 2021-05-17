@@ -53,7 +53,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -379,7 +379,7 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
 
             if args.scripted:
                 with torch.no_grad():
-                    acts = scripted_action(obs_state, picked_object=dt["pick_object"])
+                    acts = dt["actions"]
                     if args.cuda:
                         acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
             else:
@@ -442,7 +442,7 @@ def dagger():
     env_params = get_env_params(env)
     best_succ_rate = 0
 
-    check_if_dataset_folder_exists(args)
+    #check_if_dataset_folder_exists(args)
 
     ######## get model stuff
     env_params["depth"] = args.depth
@@ -451,16 +451,18 @@ def dagger():
 
     student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
 
-    if args.cuda:
-        student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
 
     # get model object mean/std stats
-    obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
+    #obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
+    obj = torch.load('curr_bc_model_0.6380849388222776.pt', map_location=torch.device('cpu'))
+    student_model.load_state_dict(obj['actor_net'])
 
+    if args.cuda:
+        student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
     ######### optimizer and scheduler
     # dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.0001)
 
     scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
     losses = []
