@@ -478,13 +478,6 @@ class FetchEnv(RobotEnv):
         # Extract information for sampling goals.
         self.initial_gripper_xpos = self.sim.data.get_site_xpos('ee').copy()
 
-        action = np.asarray([[0, 0, -0.15, 0, 0, 0, 0]])
-        mocap_set_action(self.sim, action)
-        self.sim.forward()
-
-        for i in range(50):
-            self.sim.step()
-
         # print(f"Initial gripper position {self.initial_gripper_xpos}")
         # exit()
         

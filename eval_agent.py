@@ -123,7 +123,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
             save_obs_img, save_depth_image = use_real_depths_and_crop(obs_img, depth_image)
 
-            # display_state(obs_img)
+            display_state(obs_img)
             
             #pcd = create_point_cloud(save_obs_img, save_depth_image, fovy=45)
             #pcds.append(("none", pcd))
@@ -141,6 +141,9 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
                     else:
                         pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
                     actions = pi.detach().cpu().numpy().squeeze()
+
+            if args.scripted:
+                actions, picked_object = scripted_action(observation, picked_object=picked_object)
 
             observation_new, _, _, info = env.step(actions)
             rollout.append({

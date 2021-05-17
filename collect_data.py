@@ -226,8 +226,8 @@ def bc_train(env):
     
     if args.just_eval:
         # model_path = 'best_bc_model.pt'
-        # model_path = 'curr_img_model.pt'
         model_path = 'curr_rgb_model.pt'
+        # model_path = 'dagger_rgb_model.pt'
         obj = torch.load(model_path, map_location=lambda storage, loc: storage)
         student_model.load_state_dict(obj['actor_net'])
 
@@ -385,12 +385,15 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
             else:
                 with torch.no_grad():
                     acts = loaded_net(state_based_input)
-
-            
+           
+            # show_video(obs_img[0].permute(1,2,0).numpy().astype(np.uint8))
             if args.task != 'sym_state':
                 student_acts = loaded_net(obs_img, g_norm)
             else:
                 student_acts = loaded_net(state_based_input)
+            
+            print(acts[0])
+            print(student_acts[0])
             # compute the loss
             # print(acts[0], student_acts[0])
 
@@ -497,6 +500,8 @@ def dagger():
             obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(obs, args, is_np=True)
             g_norm = g_norm.squeeze(0)
             #print(obs_img.shape, g_norm.shape) 
+
+            # display_state(obs)
             # env.render()
             act, pick_object = scripted_action(obs, pick_object)
 
