@@ -142,8 +142,8 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
                         pi = get_policy(obs_img=None, g=g[np.newaxis, :], obs=observation["observation"])
                     actions = pi.detach().cpu().numpy().squeeze()
 
-            if args.scripted:
-                actions, picked_object = scripted_action(observation, picked_object=picked_object)
+            #if args.scripted:
+            #    actions, picked_object = scripted_action(observation, picked_object=picked_object)
 
             observation_new, _, _, info = env.step(actions)
             rollout.append({

@@ -20,7 +20,7 @@ import cv2
 import matplotlib.pyplot as plt
 from mpi4py import MPI
 from arguments import get_args
-
+from stupid_net import StupidNet 
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -392,10 +392,6 @@ def train_1_epoch(ep, env, obj, args, loaded_net, scheduler, optimizer, rand_i, 
             else:
                 student_acts = loaded_net(state_based_input)
             
-            # print(acts[0])
-            # print(student_acts[0])
-            # compute the loss
-            # print(acts[0], student_acts[0])
 
             loss = F.mse_loss(student_acts, acts)
 
@@ -443,8 +439,7 @@ def dagger():
     modder = get_texture_modder(env)
     args = get_args()
     env_params = get_env_params(env)
-    best_succ_rate = 0
-
+    best_rate_yet = 0
     check_if_dataset_folder_exists(args)
 
     ######## get model stuff
@@ -453,20 +448,22 @@ def dagger():
     env_params["model_path"] = paths['FetchPickAndPlace-v1']['xarm']['sym_state'] + '/model.pt'
 
     student_model, _, _, _ = model_factory(task=args.task, env_params=env_params)
-
+    
 
     # get model object mean/std stats
     #obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
     # obj = torch.load('curr_bc_model_0.6380849388222776.pt', map_location=torch.device('cpu'))
-    obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
-    student_model.load_state_dict(obj['actor_net'])
-
+    #obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
+    #student_model.load_state_dict(obj['actor_net'])
+    
+    #student_model = StupidNet()
+    
     if args.cuda:
         student_model = student_model.cuda(MPI.COMM_WORLD.Get_rank())
     ######### optimizer and scheduler
     # dt_loader = get_offline_dataset(args)
 
-    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(params=student_model.parameters(), lr=0.01)
 
     scheduler = ReduceLROnPlateau(optimizer, 'min', verbose=True)
     losses = []
@@ -510,7 +507,7 @@ def dagger():
             obs['actions'] = act
             observations.append(obs)
 
-            obs, _, _, infor = env.step(student_acts)
+            obs, _, _, infor = env.step(act)
             
             if infor['is_success'] != 1:
                 since_success = 0
@@ -527,7 +524,7 @@ def dagger():
 
         print(is_succ, len(observations))
         # print(is_succ)
-        if not is_succ:
+        if is_succ:
             add_to_dataset(ep, observations, args.bc_dataset_path)
         else:
             continue
@@ -538,7 +535,7 @@ def dagger():
         # succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
 
         # print(f"Epoch: {ep} | Success Rate right now: {succ_rate}")
-        succ_rate = 0
+        succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
 
         rewards.append(succ_rate)
         save_dict = {
@@ -551,18 +548,15 @@ def dagger():
             'losses': losses,
         }
 
-        # if succ_rate >= best_succ_rate:
-        #     torch.save(save_dict, f"best_bc_model_{rand_i}.pt")
-        #     best_succ_rate = succ_rate
-        # else:
-        #     torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
-        if ep % 10 == 0:
-            succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
+        if ep % 1 == 0:
             print(f"Evaluating Model: Success Rate {succ_rate}")
-            exit()
+            if succ_rate >= best_rate_yet:
+                print("saving model")
+                best_rate_yet = succ_rate
+                torch.save(save_dict, f"best_dagger_model_{rand_i}.pt")
 
         ep += 1
-        torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
+        torch.save(save_dict, f"curr_dagger_model_{rand_i}.pt")
 
 
 
