@@ -20,7 +20,8 @@ import cv2
 import matplotlib.pyplot as plt
 from mpi4py import MPI
 from arguments import get_args
-from stupid_net import StupidNet 
+from stupid_net import StupidNet
+import random
 
 env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
@@ -88,7 +89,7 @@ def check_if_dataset_folder_exists(args):
     # creating dataset folder
     os.system(f"mkdir {parent_path}")
 
-def generate_dataset(state_based_model, obj, args):
+def generate_dataset(state_based_model, env, obj, args):
     parent_path = args.bc_dataset_path
     # Deleting dataset folder
     os.system(f"rm -rf {parent_path}")
@@ -441,7 +442,7 @@ def dagger():
     env_params = get_env_params(env)
     best_rate_yet = 0
     check_if_dataset_folder_exists(args)
-
+    
     ######## get model stuff
     env_params["depth"] = args.depth
     env_params["load_saved"] = False
@@ -451,10 +452,10 @@ def dagger():
     
 
     # get model object mean/std stats
-    #obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
+    # obj = torch.load(env_params["model_path"], map_location=torch.device('cpu'))
     # obj = torch.load('curr_bc_model_0.6380849388222776.pt', map_location=torch.device('cpu'))
-    #obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
-    #student_model.load_state_dict(obj['actor_net'])
+    # obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
+    # student_model.load_state_dict(obj['actor_net'])
     
     #student_model = StupidNet()
     
@@ -471,6 +472,21 @@ def dagger():
     #########
     ep = 0
     max_ep_len = 500
+
+    # generate 400,000 transitions
+    generate_dataset(None, env, None, args)
+
+    # obj
+    obj = torch.load('curr_rgb_model.pt', map_location=torch.device('cpu'))
+
+    args.n_batches = 50
+
+    # train for 50 epochs
+    student_model, scheduler, optimizer, losses = train_1_epoch(0, env, obj, args, student_model, scheduler, optimizer, rand_i, losses)
+    
+    args.n_batches = 1
+
+    print("now doing dagger")
     while True:
         obs = env.reset()
 
@@ -507,7 +523,13 @@ def dagger():
             obs['actions'] = act
             observations.append(obs)
 
-            obs, _, _, infor = env.step(act)
+            # add probability to prevent distribution drift
+            if np.random.uniform(0,1) > 0.5:
+                a = student_acts
+            else:
+                a = act
+
+            obs, _, _, infor = env.step(a)
             
             if infor['is_success'] != 1:
                 since_success = 0
@@ -521,20 +543,15 @@ def dagger():
             if out_of_bounds(obs):
                 print("going out of bounds !")
                 break
-
-        print(is_succ, len(observations))
-        # print(is_succ)
         if is_succ:
             add_to_dataset(ep, observations, args.bc_dataset_path)
         else:
+            print("successful trajectory, going back to unsuccessful")
             continue
 
         # train for 1 epoch
         student_model, scheduler, optimizer, losses = train_1_epoch(ep, env, obj, args, student_model, scheduler, optimizer, rand_i, losses)
 
-        # succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
-
-        # print(f"Epoch: {ep} | Success Rate right now: {succ_rate}")
         succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, args.task)
 
         rewards.append(succ_rate)
