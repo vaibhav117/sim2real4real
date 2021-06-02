@@ -9,6 +9,13 @@ This is a pytorch implementation of DDPG+[Hindsight Experience Replay](https://a
 - pytorch latest version
 - mpi4py latest version
 
+
+### Install Mujoco
+
+1. create a .mujoco folder in your home folder.
+2. download mujoco200 from this link, and unzip it in .mujoco folder.
+3. get the mjkey.txt file and put it in the .mujoco folder.
+
 ## Instruction to run the code
 The run2.sh, run.sh and run3.sh files consist of code that run the various models.
 

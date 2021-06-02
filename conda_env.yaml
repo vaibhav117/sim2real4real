@@ -1,0 +1,15 @@
+name: sim2real
+channels:
+  - defaults
+dependencies:
+  - python=3.6
+  - pytorch
+  - pip:
+    - numpy
+    - mpi4py
+    - torchvision
+    - mujoco_py
+    - matplotlib
+    - opencv-python
+    - open3d
+
