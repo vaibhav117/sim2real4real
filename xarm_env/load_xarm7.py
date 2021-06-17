@@ -1,4 +1,3 @@
-import torch
 import gym
 import os
 import mujoco_py
@@ -16,8 +15,6 @@ import numpy as np
 import gym
 from gym import error, spaces
 from gym.utils import seeding
-
-from mujoco_py.modder import TextureModder, MaterialModder, CameraModder, LightModder
 
 
 def randomize_textures(sim, modder):
@@ -257,9 +254,10 @@ class FetchEnv(RobotEnv):
         self.distance_threshold = distance_threshold
         self.reward_type = reward_type
         self._max_episode_steps = 50 
+        self._prev_gripper = -1
 
         super(FetchEnv, self).__init__(
-            model_path=model_path, n_substeps=n_substeps, n_actions=4,
+            model_path=model_path, n_substeps=n_substeps, n_actions=5,
             initial_qpos=initial_qpos)
 
     # GoalEnv methods
@@ -291,7 +289,7 @@ class FetchEnv(RobotEnv):
             self.sim.forward()
 
     def _set_action(self, action):
-        assert action.shape == (4,)
+        assert action.shape == (5,)
         action = action.copy()  # ensure that we don't change the action outside of this scope
         pos_ctrl, gripper_ctrl = action[:3], action[3]
 
@@ -313,25 +311,32 @@ class FetchEnv(RobotEnv):
         # Apply action to simulation.
         if gripper_ctrl <= 0:
             # open gripper
-            ctrl_set_action(self.sim, -1)
+            gripper_action = -1
             # for i in range(50):
             # self.sim.step()
         elif gripper_ctrl > 0:
             # close gripper
-            ctrl_set_action(self.sim, 1.0)
+            gripper_action = 1
             # for i in range(50):
             # self.sim.step()
-
 
         one = np.asarray([0, 0, 0, 0])
         action_with_0_rotation = np.expand_dims(np.concatenate((pos_ctrl, one)), axis=0)
         mocap_set_action(self.sim, action_with_0_rotation)
+        # if self._prev_gripper != gripper_ctrl:
+        if action[4] == 1:
+            for _ in range(25):
+                ctrl_set_action(self.sim, gripper_action)
+                self.sim.step()
+            self._prev_gripper = gripper_ctrl
 
     def _get_obs(self):
         # positions
         grip_pos = self.sim.data.get_site_xpos('ee')
         grip_right_pos = self.sim.data.get_site_xpos('ee_2')
+        grip_ee = 0.5*(grip_pos+grip_right_pos)
         dt = self.sim.nsubsteps * self.sim.model.opt.timestep
+        prev_gripper_state = np.array([self._prev_gripper])
         #grip_velp = self.sim.data.get_site_xvelp('robot0:grip') * dt
         robot_qpos, robot_qvel = robot_get_obs(self.sim)
         if self.has_object:
@@ -342,7 +347,7 @@ class FetchEnv(RobotEnv):
             object_velp = self.sim.data.get_site_xvelp('object0') * dt
             object_velr = self.sim.data.get_site_xvelr('object0') * dt
             # gripper state
-            object_rel_pos = object_pos - grip_pos
+            object_rel_pos = object_pos - grip_ee
             # object_velp -= grip_velp
         else:
             object_pos = object_rot = object_velp = object_velr = object_rel_pos = np.zeros(0)
@@ -367,11 +372,9 @@ class FetchEnv(RobotEnv):
             ])
         else:
             obs = np.concatenate([
-                grip_pos, object_pos.ravel(), object_rel_pos.ravel(), object_rot.ravel(), object_velp.ravel(), object_velr.ravel(), gripper_state, grip_right_pos
+                grip_pos, prev_gripper_state, object_pos.ravel(), object_rel_pos.ravel(), object_rot.ravel(), object_velp.ravel(), object_velr.ravel(), gripper_state, grip_right_pos
             ])
-            
-
-
+        
         return {
             'observation': obs.copy(),
             'achieved_goal': achieved_goal.copy(),
@@ -379,7 +382,6 @@ class FetchEnv(RobotEnv):
         }
 
     def _viewer_setup(self):
-
         # return
         body_id = self.sim.model.body_name2id('link7')
         lookat = self.sim.data.body_xpos[body_id]
@@ -413,25 +415,8 @@ class FetchEnv(RobotEnv):
 
             # with 0.5 probability, set starting state of the robot gripper on top of the object
             # if np.random.uniform(0, 1) > 0.5:
-            if False:
-                act = np.zeros((4,))
-
-                pos_of_box = object_qpos[:3]
-
-                init_gripper_position = self.initial_gripper_xpos
-
-                act[:3] = pos_of_box - init_gripper_position
-                act[1] -= 0.03
-                # open gripper
-                act[3] = -1
-
-                self._set_action(act)
-
-                for i in range(80):
-                    self._set_action(act)
-                    self.sim.step()
-                    # self.render()
-
+            self._set_action(np.asarray([0.,0.,0.,0.,0.]))
+        ctrl_set_action(self.sim, -1)
         self.sim.forward()
         return True
 
@@ -459,10 +444,9 @@ class FetchEnv(RobotEnv):
         return (d < self.distance_threshold).astype(np.float32)
 
     def _env_setup(self, initial_qpos):
-                
         reset_mocap_welds(self.sim) # Important
         reset_mocap2body_xpos(self.sim)
-        ctrl_set_action(self.sim, 1)
+        ctrl_set_action(self.sim, -1)
         action = np.asarray([[0.3, 0, 0.15, 0, 0, 0, 0]])
         mocap_set_action(self.sim, action)
         self.sim.forward()
@@ -478,6 +462,13 @@ class FetchEnv(RobotEnv):
         # Extract information for sampling goals.
         self.initial_gripper_xpos = self.sim.data.get_site_xpos('ee').copy()
 
+        # action = np.asarray([[0, 0, -0.15, 0, 0, 0, 0]])
+        # mocap_set_action(self.sim, action)
+        # self.sim.forward()
+
+        # for i in range(50):
+        #     self.sim.step()
+
         # print(f"Initial gripper position {self.initial_gripper_xpos}")
         # exit()
         
@@ -489,24 +480,6 @@ class FetchEnv(RobotEnv):
 
     def render(self, mode='human', width=500, height=500, depth=False):
         return super(FetchEnv, self).render(mode, width, height, depth=depth)
-
-
-from gym import utils as utz
-
-
-class XarmFetchReachEnv(FetchEnv, utz.EzPickle):
-    def __init__(self, xml_path, reward_type='sparse'):
-        initial_qpos = {
-            'robot0:slide0': 0.4049,
-            'robot0:slide1': 0.48,
-            'robot0:slide2': 0.0,
-        }
-        FetchEnv.__init__(
-            self, xml_path, has_object=False, block_gripper=True, n_substeps=10,
-            gripper_extra_height=0.2, target_in_the_air=True, target_offset=0.0,
-            obj_range=0.15, target_range=0.15, distance_threshold=0.05,
-            initial_qpos=initial_qpos, reward_type=reward_type)
-        utz.EzPickle.__init__(self)
 
 
 

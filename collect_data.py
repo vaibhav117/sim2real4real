@@ -5,8 +5,8 @@ from os.path import join
 import datetime
 from torch.utils.data import Dataset, DataLoader
 import os 
-from rl_modules.ddpg_agent import model_factory
-from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action, show_video, randomize_textures, get_texture_modder, out_of_bounds
+from rl_modules.ddpg_agent import model_factory, randomize_camera
+from rl_modules.utils import get_env_params, _preproc_inputs_image_goal, display_state, load_viewer_to_env, scripted_action, scripted_action_new, show_video, randomize_textures, get_texture_modder, out_of_bounds, use_real_depths_and_crop, get_viewer
 from arguments import get_args
 import torch
 import torch.nn.functional as F
@@ -22,13 +22,7 @@ from mpi4py import MPI
 from arguments import get_args
 from stupid_net import StupidNet
 import random
-
-env = PickAndPlaceXarm(xml_path='./assets/fetch/pick_and_place_xarm.xml')
-env = load_viewer_to_env(env)
-
-num_episodes = 10
-height = 100
-width = 100
+from pcd_utils import visualize, return_pcd
 
 paths = {
     'FetchReach-v1': {
@@ -89,7 +83,9 @@ def check_if_dataset_folder_exists(args):
     # creating dataset folder
     os.system(f"mkdir {parent_path}")
 
-def generate_dataset(state_based_model, env, obj, args):
+def generate_dataset(sc_policy, env, args):
+    height = 100
+    width = 100
     parent_path = args.bc_dataset_path
     # Deleting dataset folder
     os.system(f"rm -rf {parent_path}")
@@ -99,37 +95,24 @@ def generate_dataset(state_based_model, env, obj, args):
     for j in range(num_episodes):
         obs = env.reset()
         picked_object = False
-        last_two = []
-        for i in range(100): # more needed for pick and place
+        for _ in range(100): # more needed for pick and place
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
-            if len(last_two) == 0:
-                last_two.append(rgb.copy())
-                last_two.append(rgb.copy())
-                last_two.append(rgb)
-            else:
-                last_two = last_two[1:]
-                last_two.append(rgb)
+            new_rgb, new_dep = use_real_depths_and_crop(rgb, dep, vis=False)
+           
             # sampling policy used saved model ?
-            obs["rgb"] = rgb
-            obs["dep"] = dep
-            obs["last_two"] = np.stack(last_two)
+            obs["rgb"] = new_rgb
+            obs["dep"] = new_dep
+            # obs["last_two"] = np.stack(last_two)
 
-            if args.scripted:
-                actions, picked_object = scripted_action(obs, picked_object)
-            else:
-                obs["obj"] = obj
-                actions = get_policy(state_based_model, obs, args)
-                del obs['obj']
+            actions, picked_object = sc_policy(obs, picked_object)
             obs["actions"] = actions
 
             # step actions
-            new_obs, rew, _ , _ = env.step(actions)
+            new_obs, _, _ , _ = env.step(actions)
         
             save_image(j, obs, parent_path)
-
-            #display_state(obs)
             obs = new_obs
-
+        print(f"{j} number of episodes completed")
 
 class OfflineDataset(Dataset):
 
@@ -577,9 +560,11 @@ def dagger():
 
 def create_off_dataset():
     args = get_args()
-
-    generate_dataset(None, None, args)
+    sc_policy = scripted_action_new
+    env = PickAndPlaceXarm(xml_path='./assets/xarm/fetch/pick_and_place_xarm.xml')
+    env = load_viewer_to_env(env)
+    generate_dataset(sc_policy, env, args)
 
 # bc_train(env)
-# create_off_dataset()
-dagger()
+create_off_dataset()
+# dagger()

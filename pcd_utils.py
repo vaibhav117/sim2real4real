@@ -18,6 +18,10 @@ def retrieve_traj():
     return obj
 
 
+def return_pcd(img, dep):
+    pcd = create_point_cloud(img, dep)
+    return pcd
+
 def get_real_pcd(filepath='xarm_env/obs_dump.pkl'):
     rolls = torch.load(filepath)
 

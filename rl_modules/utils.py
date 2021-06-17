@@ -25,6 +25,9 @@ def load_viewer_to_env(env, device_id=MPI.COMM_WORLD.Get_rank()):
     env.env._viewers["rgb_array"] = viewer
     return env
 
+def get_viewer(env):
+    return env.env._viewers["rgb_array"]
+
 def normalize_depth(img):
     near = 0.021
     far = 2.14
@@ -110,6 +113,47 @@ def scripted_action(obs, picked_object):
 
     return action, True
 
+
+def scripted_action_new(obs, picked_object):
+    x = obs["observation"][7]
+    y = obs["observation"][8]
+    z = obs["observation"][9] - 0.005   # The offset makes the arm grip the object better, as it aim to grab the point a little below the mid point
+    
+    if picked_object and (abs(x) > 0.1 or abs(y) > 0.1 or abs(z) > 0.1):
+        picked_object = False
+
+    if not picked_object: #3 # TODO: make a function that does this robustly
+        # if robot is above the object then first align
+        if abs(x) > 0.001 or abs(y) > 0.001:
+            action = np.asarray([x, y, 0]) * 50
+            b = np.asarray((1)).reshape((1))
+            grip_changed = np.asarray((0)).reshape((1))
+            action = np.concatenate((action, b, grip_changed), axis=0)
+            return action, False
+        
+        # if robot is aligned, then go down
+        if abs(z) > 0.001:            
+            action = np.asarray([0, 0, z]) * 50
+            b = np.asarray((-1)).reshape((1))
+            grip_changed = np.asarray((0)).reshape((1))
+            action = np.concatenate((action, b, grip_changed), axis=0)
+            return action, False
+
+    left_gripper = obs['observation'][:3]
+    right_gripper = obs['observation'][-3:]
+    a = abs(right_gripper[1] - left_gripper[1])
+    if abs(z) > 0.0007 and a > 0.050:
+        action = np.asarray([0, 0, 0, 1, 1])
+        return action, True
+    
+    # print("go towards goal")
+    desired_goal = obs["desired_goal"]  # place of goal
+    achieved_goal = obs["achieved_goal"] # actual goal
+
+    action = desired_goal - achieved_goal
+    scaler = 10
+    action = np.asarray([action[0]*scaler, action[1]*scaler, action[2]*scaler, 1, 0])
+    return action, True
 
 class Benchmark:
 

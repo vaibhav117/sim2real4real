@@ -5,6 +5,9 @@ from rl_modules.utils import load_viewer, show_video, randomize_textures, get_te
 import numpy as np
 import matplotlib.pyplot as plt
 
+from xarm_env.load_xarm7 import FetchEnv
+from gym import utils as utz
+
 class XarmFetchPickPlaceEnv(FetchEnv, utz.EzPickle):
     def __init__(self, xml_path='assets/fetch/pick_and_place_xarm.xml', reward_type='sparse'):
         initial_qpos = {
@@ -13,7 +16,7 @@ class XarmFetchPickPlaceEnv(FetchEnv, utz.EzPickle):
             'robot0:slide2': 0.0,
         }
         FetchEnv.__init__(
-            self, xml_path, has_object=True, block_gripper=False, n_substeps=10,
+            self, xml_path, has_object=True, block_gripper=False, n_substeps=100,
             gripper_extra_height=0.2, target_in_the_air=True, target_offset=0.0,
             obj_range=0.10, target_range=0.15, distance_threshold=0.05,
             initial_qpos=initial_qpos, reward_type=reward_type)
@@ -55,7 +58,6 @@ class PickAndPlaceXarm:
     @property
     def _max_episode_steps(self):
         return self.env._max_episode_steps
-    
 
 def check_distance():
     reach_combined_gripper = 'assets/fetch/reach_xarm_with_gripper.xml'
