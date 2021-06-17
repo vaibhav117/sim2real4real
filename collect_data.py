@@ -333,9 +333,7 @@ def bc_train(env):
         else:
             torch.save(save_dict, f"curr_bc_model_{rand_i}.pt")
 
-        # eval_agent_and_save(env, student_model, save_record)
-
-            
+        # eval_agent_and_save(env, student_model, save_record
             
     # for i in range(10):
     #     obs = env.reset()

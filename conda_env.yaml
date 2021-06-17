@@ -12,4 +12,3 @@ dependencies:
     - matplotlib
     - opencv-python
     - open3d
-
