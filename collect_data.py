@@ -565,6 +565,6 @@ def create_off_dataset():
     env = load_viewer_to_env(env)
     generate_dataset(sc_policy, env, args)
 
-# bc_train(env)
-create_off_dataset()
+bc_train(env)
+#create_off_dataset()
 # dagger()

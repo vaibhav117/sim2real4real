@@ -304,11 +304,11 @@ def _preproc_inputs_state(obs, args, is_np):
         g = obs["desired_goal"].numpy()
 
     # obs_norm = np.clip((obs_state - obj['o_mean'])/obj['o_std'], -args.clip_range, args.clip_range)
-    # g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
+    g_norm = np.clip((g - obj['g_mean'])/obj['g_std'], -args.clip_range, args.clip_range)
     # concatenate the stuffs
 
     obs_norm = obs_state
-    g_norm = g
+    #g_norm = g
 
     inputs = np.concatenate([obs_norm, g_norm], axis=1)
     if is_np:
@@ -341,7 +341,6 @@ def _preproc_inputs_image_goal(obs, args, is_np):
         if is_np:
             obs_img = obs_img.squeeze(0)
             obs_img = obs_img.astype(np.float32)
-            print(obs_img.shape, depth.shape)
             # obs_img = obs_img / 255 # normalize image data between 0 and 1
             obs_img, depth = use_real_depths_and_crop(obs_img, depth)
             obs_img = np.concatenate((obs_img, depth), axis=2)
