@@ -20,7 +20,7 @@ import cv2
 import matplotlib.pyplot as plt
 from mpi4py import MPI
 from arguments import get_args
-from stupid_net import StupidNet
+# from stupid_net import StupidNet
 import random
 from pcd_utils import visualize, return_pcd
 
@@ -565,6 +565,8 @@ def create_off_dataset():
     env = load_viewer_to_env(env)
     generate_dataset(sc_policy, env, args)
 
+env = PickAndPlaceXarm(xml_path='./assets/xarm/fetch/pick_and_place_xarm.xml')
+env = load_viewer_to_env(env)
 bc_train(env)
 #create_off_dataset()
 # dagger()
