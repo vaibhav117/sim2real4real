@@ -68,13 +68,13 @@ def get_policy(model, obs, args, is_np=True):
     obs, g_norm, state_input = _preproc_inputs_image_goal(obs, args, is_np)
     return model(state_input).detach().cpu().numpy().squeeze()
 
-
+'''
 def save_image(j, obs, parent_path, verbose=False):
     outfile = join(parent_path, str(datetime.datetime.now()))
     np.save(outfile, obs)
     if verbose:
         print(f"{j} file saved to {outfile}")
-
+'''
 
 def check_if_dataset_folder_exists(args):
     parent_path = args.bc_dataset_path
