@@ -68,13 +68,12 @@ def get_policy(model, obs, args, is_np=True):
     obs, g_norm, state_input = _preproc_inputs_image_goal(obs, args, is_np)
     return model(state_input).detach().cpu().numpy().squeeze()
 
-'''
+
 def save_image(j, obs, parent_path, verbose=False):
     outfile = join(parent_path, str(datetime.datetime.now()))
     np.save(outfile, obs)
     if verbose:
         print(f"{j} file saved to {outfile}")
-'''
 
 def check_if_dataset_folder_exists(args):
     parent_path = args.bc_dataset_path
@@ -249,14 +248,10 @@ def bc_train(env):
             # continue
 
             # run through model
-            if args.scripted:
-                with torch.no_grad():
-                    acts = dt["actions"].clone().detach()
-                    if args.cuda:
-                        acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
-            else:
-                with torch.no_grad():
-                    acts = state_based_model(state_based_input)
+            with torch.no_grad():
+                acts = dt["actions"].clone().detach()
+                if args.cuda:
+                    acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
 
             # zero_inp = torch.zeros_like(obs_img)
             # zero_g = torch.zeros_like(g_norm)
