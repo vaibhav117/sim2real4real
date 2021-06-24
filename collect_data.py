@@ -68,13 +68,13 @@ def get_policy(model, obs, args, is_np=True):
     obs, g_norm, state_input = _preproc_inputs_image_goal(obs, args, is_np)
     return model(state_input).detach().cpu().numpy().squeeze()
 
-'''
+
 def save_image(j, obs, parent_path, verbose=False):
     outfile = join(parent_path, str(datetime.datetime.now()))
     np.save(outfile, obs)
     if verbose:
         print(f"{j} file saved to {outfile}")
-'''
+
 
 def check_if_dataset_folder_exists(args):
     parent_path = args.bc_dataset_path
@@ -98,7 +98,7 @@ def generate_dataset(sc_policy, env, args):
         for _ in range(100): # more needed for pick and place
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
             new_rgb, new_dep = use_real_depths_and_crop(rgb, dep, vis=False)
-           
+            show_video(rgb)
             # sampling policy used saved model ?
             obs["rgb"] = new_rgb
             obs["dep"] = new_dep
@@ -567,6 +567,6 @@ def create_off_dataset():
 
 env = PickAndPlaceXarm(xml_path='./assets/xarm/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
-bc_train(env)
-#create_off_dataset()
+# bc_train(env)
+create_off_dataset()
 # dagger()
