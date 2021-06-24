@@ -75,7 +75,6 @@ def save_image(j, obs, parent_path, verbose=False):
     if verbose:
         print(f"{j} file saved to {outfile}")
 
-
 def check_if_dataset_folder_exists(args):
     parent_path = args.bc_dataset_path
     # Deleting dataset folder
@@ -249,14 +248,10 @@ def bc_train(env):
             # continue
 
             # run through model
-            if args.scripted:
-                with torch.no_grad():
-                    acts = dt["actions"].clone().detach()
-                    if args.cuda:
-                        acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
-            else:
-                with torch.no_grad():
-                    acts = state_based_model(state_based_input)
+            with torch.no_grad():
+                acts = dt["actions"].clone().detach()
+                if args.cuda:
+                    acts = acts.cuda(MPI.COMM_WORLD.Get_rank())
 
             # zero_inp = torch.zeros_like(obs_img)
             # zero_g = torch.zeros_like(g_norm)
