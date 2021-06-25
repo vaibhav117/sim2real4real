@@ -48,7 +48,7 @@ paths = {
     'FetchPickAndPlace-v1': {
         'xarm': {
             'asym_goal_outside_image': './sym_server_weights/saved_models/asym_goal_outside_image/FetchPickAndPlace-v1',
-            'sym_state': './saved_models/sym_state/FetchPickAndPlace-v1',
+            'sym_state': './sym_server_weights/saved_models/sym_state/FetchPickAndPlace-v1',
             'asym_goal_outside_image_distill': './sym_server_weights/saved_models/asym_goal_outside_image_distill/FetchPickAndPlace-v1',
         }
     }
@@ -223,7 +223,7 @@ def bc_train(env):
         total_loss = 0
         if args.just_eval:
             succ_rates = []
-            for i in range(20):
+            for _ in range(20):
                 succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task=args.task)
                 succ_rates.append(succ_rate)
             plt.plot(np.arange(len(succ_rates)), succ_rates, color='red')
@@ -233,14 +233,14 @@ def bc_train(env):
         # TODO:
         #add epoch init stuff here
         start = time.time()
-        for idx, dt in enumerate(dt_loader):
+        for _, dt in enumerate(dt_loader):
 
             dt["obj"] = obj
             obs_state = dt["observation"]
             g = dt["desired_goal"].to(torch.float32)
 
             # TODO normalize
-            obs_img, g_norm, state_based_input = _preproc_inputs_image_goal(dt, args, is_np=False)
+            obs_img, g_norm, _ = _preproc_inputs_image_goal(dt, args, is_np=False)
 
             # print(obs_img.shape)
             # obs_img = obs_img.permute(0,2,3,1).numpy()[0].astype(np.uint8)
@@ -257,10 +257,7 @@ def bc_train(env):
             # zero_g = torch.zeros_like(g_norm)
             # z_s_b = torch.zeros_like(state_based_input)
             # print(state_based_input)
-            if args.task != 'sym_state':
-                student_acts = student_model(obs_img, g_norm)
-            else:
-                student_acts = student_model(state_based_input)
+            student_acts = student_model(obs_img, g_norm)
             # print(acts, student_acts)
             # compute the loss
             loss = F.mse_loss(student_acts, acts)
@@ -277,6 +274,7 @@ def bc_train(env):
 
             # TODO: add plotting for training
             losses.append(loss.item())
+            # break
             
         print(total_loss)
         scheduler.step(total_loss)
@@ -287,13 +285,12 @@ def bc_train(env):
 
         print(f"Epoch {ep} | Total time taken {end - start} | Loss {total_loss / len(dt_loader)}")
 
-
         if ep % 10 == 0:
             # save video of agent
             args.record = True
         else:
             args.record = False
-        
+        # continue
         succ_rate = eval_agent_and_save(ep, env, args, student_model, obj, task=args.task)
         rewards.append(succ_rate)
         save_dict = {
@@ -562,6 +559,6 @@ def create_off_dataset():
 
 env = PickAndPlaceXarm(xml_path='./assets/xarm/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
-# bc_train(env)
-create_off_dataset()
+bc_train(env)
+# create_off_dataset()
 # dagger()

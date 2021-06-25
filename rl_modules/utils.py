@@ -318,11 +318,7 @@ def _preproc_inputs_state(obs, args, is_np):
 
     return inputs
 
-def _preproc_inputs_image_goal(obs, args, is_np):
-    """
-    One function to preprocess them all.
-
-    """
+def is_np_or_not(obs, is_np):
     if is_np:
         obs_img = obs["rgb"][np.newaxis, :].copy()
         g = obs["desired_goal"][np.newaxis, :].copy()
@@ -335,6 +331,32 @@ def _preproc_inputs_image_goal(obs, args, is_np):
         depth = obs["dep"].numpy().copy()
         obj = obs["obj"]
 
+    return obs_img, g, depth, obj
+
+def _preproc_image(obs, args, is_np):
+    obs_img, _, depth, _ = is_np_or_not(obs, is_np)
+
+    if args.depth:
+        obs_img = obs_img.squeeze(0)
+        obs_img = obs_img.astype(np.float32)
+        # obs_img = obs_img / 255 # normalize image data between 0 and 1
+        obs_img, depth = use_real_depths_and_crop(obs_img, depth)
+        obs_img = np.concatenate((obs_img, depth), axis=2)
+        obs_img = torch.tensor(obs_img, dtype=torch.float32).unsqueeze(0)
+        obs_img = obs_img.permute(0, 3, 1, 2)
+
+    if args.cuda:
+        obs_img = obs_img.cuda(MPI.COMM_WORLD.Get_rank())
+
+    return obs_img
+
+
+def _preproc_inputs_image_goal(obs, args, is_np):
+    """
+    One function to preprocess them all.
+
+    """
+    obs_img, g, depth, obj = is_np_or_not(obs, is_np)
     
     if args.depth:
         # add depth observation
