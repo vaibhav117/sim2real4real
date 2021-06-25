@@ -73,7 +73,7 @@ def eval_agent_and_save(ep, env, args, loaded_model, obj, task):
             obs_img, depth_image = env.render(mode="rgb_array", height=100, width=100, depth=True)
             obs_img, depth_image = use_real_depths_and_crop(obs_img, depth_image)
             
-            show_video(obs_img)
+            # show_video(obs_img)
 
             observation["rgb"] = obs_img
             observation["dep"] = depth_image
