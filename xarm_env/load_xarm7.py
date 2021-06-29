@@ -293,7 +293,6 @@ class FetchEnv(RobotEnv):
         action = action.copy()  # ensure that we don't change the action outside of this scope
         pos_ctrl, gripper_ctrl = action[:3], action[3]
 
-
         pos_ctrl *= 0.05  # limit maximum change in position
         rot_ctrl = [1., 0., 1., 0.]  # fixed rotation of the end effector, expressed as a quaternion
         
@@ -561,90 +560,3 @@ def ctrl_set_action(sim, action):
         else:
             idx = sim.model.jnt_qposadr[sim.model.actuator_trnid[i, 0]]
             sim.data.ctrl[i] = sim.data.qpos[idx] + action
-
-class ReachXarm:
-
-    def __init__(self, xml_path, reward_type='sparse'):
-        self.env = XarmFetchReachEnv(xml_path, reward_type)
-        self.sim = self.env.sim
-
-    def reset(self):
-        return self.env.reset()
-    
-    def render(self, mode="human", width=500, height=500, depth=False):
-        return self.env.render(mode, width, height, depth=depth)
-    
-    def step(self, action):
-        return self.env.step(action)
-
-    def compute_reward(self, achieved_goal, goal, info):
-        return self.env.compute_reward(achieved_goal, goal, info)
-
-    def seed(self, seed=None):
-        return self.env.seed(seed)
-    
-    def close(self):
-        return self.env.close()
-
-    @property
-    def action_space(self):
-        return self.env.action_space
-
-    @property
-    def dt(self):
-        return self.env.dt
-
-    @property
-    def _max_episode_steps(self):
-        return self.env._max_episode_steps
-    
-
-def check_distance():
-    reach_combined_gripper = 'assets/fetch/reach_xarm_with_gripper.xml'
-
-
-    env = XarmFetchReachEnv(xml_path=reach_combined_gripper)
-    obs = env.reset()
-
-    print(env.get_gripper_pos())
-    s = time.time()
-    for i in range(2):
-        action = np.asarray([1, 0, 0, 1])
-        env.step(action)
-        env.render()
-    e = time.time()
-    print(f"{e - s} seconds")
-    print(env.get_gripper_pos())
-
-
-def test_like_a_mf():
-
-    reach_env = './assets/fetch/reach.xml'
-    xarm_path = './assets/fetch/robot_xarm_main.xml'
-    gripper_model = './assets/final/xarm7_with_gripper.xml'
-    reach_gripper_model = './assets/fetch/reach_gripper.xml'
-    reach_combined = './assets/fetch/reach_combined.xml'
-    reach_combined_gripper = 'assets/fetch/reach_xarm_with_gripper.xml'
-
-
-    env = XarmFetchReachEnv(xml_path=reach_combined_gripper)
-    obs = env.reset()
-
-    modder = TextureModder(env.sim)
-
-    while True:
-        obs = env.reset()
-        randomize_textures(env.sim, modder)
-        for _ in range(50):
-            action = env.action_space.sample()
-            action = np.zeros_like(action)
-            print(action.shape)
-            # action = np.asarray([0.01, 0.02, 0.03, 1])
-            # goal = obs["desired_goal"]
-            # action[0:3] = goal
-            obs, rew, done, _ = env.step(action)
-            env.render()
-
-        
-# test_like_a_mf()
-# check_distance()
