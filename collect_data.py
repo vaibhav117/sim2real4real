@@ -97,7 +97,7 @@ def generate_dataset(sc_policy, env, args):
         for _ in range(100): # more needed for pick and place
             rgb, dep = env.render(mode='rgb_array', height=height, width=width, depth=True)
             new_rgb, new_dep = use_real_depths_and_crop(rgb, dep, vis=False)
-            show_video(rgb)
+            # show_video(rgb)
             # sampling policy used saved model ?
             obs["rgb"] = new_rgb
             obs["dep"] = new_dep
@@ -559,6 +559,6 @@ def create_off_dataset():
 
 env = PickAndPlaceXarm(xml_path='./assets/xarm/fetch/pick_and_place_xarm.xml')
 env = load_viewer_to_env(env)
-bc_train(env)
-# create_off_dataset()
+# bc_train(env)
+create_off_dataset()
 # dagger()
