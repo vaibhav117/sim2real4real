@@ -327,5 +327,5 @@ def create_off_dataset():
 
     generate_dataset(None, None, args)
 
-bc_train(env)
-# create_off_dataset()
+# bc_train(env)
+create_off_dataset()
